@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-mermaid-block-to-image",
+	"name": "Mermaid Block to Image",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Converts Mermaid code blocks to static PNG images using the free Kroki API.",
+	"author": "jcmexdev",
+	"authorUrl": "https://github.com/jcmexdev",
 	"isDesktopOnly": false
 }
