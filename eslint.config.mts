@@ -22,6 +22,16 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		files: ["**/*.ts"],
+		rules: {
+			"@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+			"obsidianmd/ui/sentence-case": ["error", {
+				"brands": ["Kroki", "Mermaid", "Obsidian"],
+				"acronyms": ["PNG", "URL"]
+			}]
+		}
+	},
 	globalIgnores([
 		"node_modules",
 		"dist",
@@ -30,5 +40,7 @@ export default tseslint.config(
 		"version-bump.mjs",
 		"versions.json",
 		"main.js",
+		"eslint.config.mts",
+		"package-lock.json",
 	]),
 );
