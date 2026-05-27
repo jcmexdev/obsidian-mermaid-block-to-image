@@ -85,7 +85,7 @@ export async function convertMermaidBlockAtCursor(app: App, editor: Editor, plug
     const filePath = targetFolder ? `${targetFolder}/${filename}` : filename;
 
     // 7. If there is a previous associated image and it is different, remove it
-    if (block.existingImagePath) {
+    if (block.existingImagePath && !block.isExistingImageRemote) {
       const oldFile = app.vault.getAbstractFileByPath(block.existingImagePath);
       if (oldFile instanceof TFile && oldFile.path !== filePath) {
         try {
@@ -112,7 +112,9 @@ export async function convertMermaidBlockAtCursor(app: App, editor: Editor, plug
     const imageLink = `![[${filePath}]]`;
     const replacementText = formatCommentedBlock(block.code, imageLink);
 
-    const endLine = block.imageLinkLine ?? block.endLine;
+    // If the existing image is a remote URL link, we do NOT overwrite it.
+    // Instead, we insert the new local image link directly before it.
+    const endLine = (block.imageLinkLine && !block.isExistingImageRemote) ? block.imageLinkLine : block.endLine;
     const endCh = editor.getLine(endLine).length;
 
     editor.replaceRange(

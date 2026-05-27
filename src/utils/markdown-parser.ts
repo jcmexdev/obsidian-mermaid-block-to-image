@@ -35,6 +35,10 @@ export interface MermaidBlock {
    * The exact line index where the associated image link was found (0-based).
    */
   imageLinkLine?: number;
+  /**
+   * Whether the existing image is a remote URL link (e.g. hosted on a CDN).
+   */
+  isExistingImageRemote?: boolean;
 }
 
 /**
@@ -131,6 +135,7 @@ export function findActiveBlockAtLine(lines: string[], cursorLine: number): Merm
   let existingImageLink: string | undefined;
   let existingImagePath: string | undefined;
   let imageLinkLine: number | undefined;
+  let isExistingImageRemote = false;
 
   for (let offset = 1; offset <= 2; offset++) {
     const nextLineIdx = endLine + offset;
@@ -141,6 +146,7 @@ export function findActiveBlockAtLine(lines: string[], cursorLine: number): Merm
         existingImageLink = nextLine.trim();
         existingImagePath = parsed.path;
         imageLinkLine = nextLineIdx;
+        isExistingImageRemote = parsed.isRemote;
         break;
       }
     }
@@ -154,6 +160,7 @@ export function findActiveBlockAtLine(lines: string[], cursorLine: number): Merm
     existingImageLink,
     existingImagePath,
     imageLinkLine,
+    isExistingImageRemote,
   };
 }
 
@@ -244,6 +251,7 @@ export function findCommentedBlockAtLine(lines: string[], cursorLine: number): M
   let existingImageLink: string | undefined;
   let existingImagePath: string | undefined;
   let imageLinkLine: number | undefined;
+  let isExistingImageRemote = false;
 
   const potentialImgLine = commentEndLine + 1;
   if (potentialImgLine < lines.length) {
@@ -253,6 +261,7 @@ export function findCommentedBlockAtLine(lines: string[], cursorLine: number): M
       existingImageLink = imgLineText.trim();
       existingImagePath = parsed.path;
       imageLinkLine = potentialImgLine;
+      isExistingImageRemote = parsed.isRemote;
     }
   }
 
@@ -264,6 +273,7 @@ export function findCommentedBlockAtLine(lines: string[], cursorLine: number): M
     existingImageLink,
     existingImagePath,
     imageLinkLine,
+    isExistingImageRemote,
   };
 }
 
