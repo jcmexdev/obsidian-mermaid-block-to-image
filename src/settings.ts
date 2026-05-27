@@ -51,7 +51,7 @@ export class MermaidSettingTab extends PluginSettingTab {
     // 1. Kroki server URL configuration
     new Setting(containerEl)
       .setName("Kroki instance URL")
-      .setDesc("The base URL of the Kroki server. Default is the free public instance: https://kroki.io. You can self-host your own.")
+      .setDesc("The base URL of the Kroki server. Default is the free public instance: https://Kroki.io. You can self-host your own.")
       .addText((text) =>
         text
           .setPlaceholder("https://kroki.io")
