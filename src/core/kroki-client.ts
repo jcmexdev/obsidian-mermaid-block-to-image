@@ -1,38 +1,38 @@
 import { requestUrl } from "obsidian";
 
 /**
- * Opciones de configuración para el cliente de Kroki.
+ * Configuration options for the Kroki client.
  */
 export interface KrokiClientOptions {
   /**
-   * La URL base de la instancia de Kroki (ej. 'https://kroki.io' o 'http://localhost:8000').
+   * The base URL of the Kroki server (e.g. 'https://kroki.io' or 'http://localhost:8000').
    */
   serverUrl?: string;
 }
 
 /**
- * Cliente Kroki encargado de interactuar con la API de Kroki para renderizar
- * diagramas Mermaid en formato PNG.
+ * Kroki client responsible for communicating with the Kroki API
+ * to render Mermaid diagrams into PNG images.
  */
 export class KrokiClient {
   private serverUrl: string;
 
   /**
-   * Crea una instancia del cliente de Kroki.
-   * @param options Opciones de configuración inicial.
+   * Creates an instance of the Kroki client.
+   * @param options Initial configuration options.
    */
   constructor(options: KrokiClientOptions = {}) {
-    // Normalizar la URL eliminando la barra diagonal final si existe
+    // Normalize URL by removing the trailing slash if it exists
     this.serverUrl = (options.serverUrl || "https://kroki.io").replace(/\/$/, "");
   }
 
   /**
-   * Envía el código de un diagrama Mermaid a la API de Kroki y devuelve
-   * la imagen PNG resultante como un ArrayBuffer.
+   * Sends the Mermaid diagram source code to the Kroki API and returns
+   * the resulting PNG image as an ArrayBuffer.
    * 
-   * @param mermaidCode El código fuente del diagrama Mermaid.
-   * @returns Un Promise que se resuelve con el ArrayBuffer que representa la imagen PNG.
-   * @throws Error si la llamada a la API falla (código HTTP distinto de 200).
+   * @param mermaidCode The Mermaid diagram source code.
+   * @returns A Promise resolving to the ArrayBuffer representing the PNG image.
+   * @throws Error if the API call fails (HTTP status code other than 200).
    */
   async generateImage(mermaidCode: string): Promise<ArrayBuffer> {
     const url = `${this.serverUrl}/mermaid/png`;
@@ -45,12 +45,12 @@ export class KrokiClient {
         body: mermaidCode,
       });
 
-      // Validar código de respuesta HTTP
+      // Validate HTTP response status
       if (response.status === 200) {
         return response.arrayBuffer;
       }
 
-      // Tratar específicamente el código de límite de velocidad (Rate Limit)
+      // Handle Rate Limit status code explicitly
       if (response.status === 429) {
         throw new Error(
           "Kroki API: Rate limit exceeded. Please try again later or configure a custom Kroki instance in settings."
@@ -59,14 +59,14 @@ export class KrokiClient {
 
       throw new Error(`Kroki API: Error ${response.status} - ${response.text || "Unknown error"}`);
     } catch (error) {
-      // Si ya es un error formateado por nosotros, volver a lanzarlo
+      // If it is already a formatted error thrown by us, rethrow it
       if (error instanceof Error && error.message.startsWith("Kroki API:")) {
         throw error;
       }
 
-      // En el caso de que la respuesta venga en el objeto de error arrojado por requestUrl
-      const status = (error as any)?.status;
-      const text = (error as any)?.text;
+      // In case the response details are encapsulated inside the error thrown by requestUrl
+      const status = (error as { status?: number })?.status;
+      const text = (error as { text?: string })?.text;
 
       if (status) {
         if (status === 429) {
@@ -77,7 +77,7 @@ export class KrokiClient {
         throw new Error(`Kroki API: Error ${status} - ${text || "Unknown network error"}`);
       }
 
-      // Error genérico de conexión
+      // Generic connection error
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Kroki API: Network error - ${message}`);
     }

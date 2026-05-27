@@ -25,8 +25,9 @@ export function registerContextMenu(plugin: MermaidToImagePlugin) {
       const block = findMermaidBlockAtLine(lines, cursor.line);
       if (block) {
         menu.addItem((item) => {
+          const title = block.type === "commented" ? "Regenerate Mermaid diagram" : "Convert Mermaid to PNG";
           item
-            .setTitle("Convert Mermaid to PNG")
+            .setTitle(title)
             .setIcon("image")
             .onClick(async () => {
               await convertMermaidBlockAtCursor(plugin.app, editor, plugin);

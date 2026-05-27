@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { KrokiClient } from '../kroki-client';
-import { requestUrl } from 'obsidian';
+import { requestUrl, RequestUrlResponse } from 'obsidian';
 
 // Mock Obsidian requestUrl
 vi.mock('obsidian', () => ({
@@ -26,7 +26,7 @@ describe('KrokiClient', () => {
       text: 'PNG binary content',
       json: null,
     };
-    vi.mocked(requestUrl).mockResolvedValue(mockResponse as any);
+    vi.mocked(requestUrl).mockResolvedValue(mockResponse as unknown as RequestUrlResponse);
 
     const mermaidCode = 'graph TD\n  A --> B';
 
@@ -52,7 +52,7 @@ describe('KrokiClient', () => {
       text: 'Error in diagram syntax',
       json: null,
     };
-    vi.mocked(requestUrl).mockResolvedValue(mockResponse as any);
+    vi.mocked(requestUrl).mockResolvedValue(mockResponse as unknown as RequestUrlResponse);
 
     const mermaidCode = 'graph TD\n  A -x- B';
 
@@ -71,7 +71,7 @@ describe('KrokiClient', () => {
       text: 'Too Many Requests',
       json: null,
     };
-    vi.mocked(requestUrl).mockResolvedValue(mockResponse as any);
+    vi.mocked(requestUrl).mockResolvedValue(mockResponse as unknown as RequestUrlResponse);
 
     // Act & Assert
     await expect(client.generateImage('graph TD\nA')).rejects.toThrow(
@@ -89,7 +89,7 @@ describe('KrokiClient', () => {
       arrayBuffer: dummyBuffer,
       text: '',
       json: null,
-    } as any);
+    } as unknown as RequestUrlResponse);
 
     // Act
     await customClient.generateImage('graph TD\nA');
