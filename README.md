@@ -4,8 +4,7 @@
 
 Convert Mermaid code blocks to static PNG images using the free Kroki API (or your own self-hosted server) to speed up note loading and ensure consistent rendering across devices.
 
-> [!NOTE]
-> This plugin is designed to run in editing views (**Source Mode** and **Live Preview**). It does not perform conversion or show right-click menu items while in **Reading Mode**.
+> ⚠️ This plugin is designed to run in editing views (**Source Mode** and **Live Preview**). It does not perform conversion or show right-click menu items while in **Reading Mode**.
 
 ---
 
@@ -16,6 +15,20 @@ Convert Mermaid code blocks to static PNG images using the free Kroki API (or yo
 - ♻️ **Smart Regeneration & Cleanup**: Need to edit the diagram? Simply modify the commented code, right-click, and select **Regenerate Mermaid diagram**. The plugin automatically deletes the old PNG from your vault (moving it to the trash) to prevent orphaned files.
 - 📁 **Configurable Storage**: Choose to save PNGs in the same folder as the active note (default) or in a custom folder of your choice (e.g., `assets/diagrams`).
 - 🏠 **Privacy & Self-Hosting**: Point the Kroki server URL in the settings to a local Docker or private server instance for 100% offline and private diagram generation.
+
+## Usage
+
+You can trigger the conversion in two ways:
+
+1. **Command Palette**:
+   - Place your cursor inside any Mermaid code block.
+   - Open the command palette (`Ctrl/Cmd + P`).
+   - Run the command: **Convert Mermaid block to PNG**.
+
+2. **Context Menu (Right-Click)**:
+   - Right-click inside any Mermaid code block.
+   - Select **Convert Mermaid to PNG**.
+   - If the block is already converted, select **Regenerate Mermaid diagram**.
 
 ---
 
