@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-mermaid-block-to-image",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Converts Mermaid code blocks to static PNG images using the free Kroki API.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
