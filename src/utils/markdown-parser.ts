@@ -422,8 +422,55 @@ export function slugify(text: string): string {
 }
 
 /**
+ * Checks if the diagram source code already contains a custom theme configuration.
+ * Specifically checks for:
+ * 1. An init block with a theme definition (e.g. `%%{init: { 'theme': '...' }}%%`)
+ * 2. A YAML frontmatter configuration containing a theme definition (e.g. `theme: forest`)
+ * 
+ * @param code The diagram source code.
+ * @returns True if a custom theme configuration is detected in the code block.
+ */
+export function hasThemeInCode(code: string): boolean {
+  if (/%%\s*\{\s*init\s*:.*theme\b/i.test(code)) {
+    return true;
+  }
+
+  const trimmed = code.trim();
+  if (trimmed.startsWith("---")) {
+    const lines = code.split("\n");
+    let openingIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]?.trim() === "---") {
+        openingIndex = i;
+        break;
+      }
+    }
+
+    if (openingIndex !== -1) {
+      let closingIndex = -1;
+      for (let i = openingIndex + 1; i < lines.length; i++) {
+        if (lines[i]?.trim() === "---") {
+          closingIndex = i;
+          break;
+        }
+      }
+
+      if (closingIndex !== -1) {
+        const frontmatterLines = lines.slice(openingIndex + 1, closingIndex);
+        const frontmatterContent = frontmatterLines.join("\n");
+        if (/\btheme\s*:/i.test(frontmatterContent)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Injects a theme initialization directive into the Mermaid code block
- * if the block does not already contain an init block.
+ * if the block does not already contain an init block or a theme declaration.
  * Handles blocks starting with YAML frontmatter correctly by inserting
  * the directive after the closing frontmatter delimiter.
  * 
@@ -432,7 +479,7 @@ export function slugify(text: string): string {
  * @returns The code with the theme directive injected if applicable.
  */
 export function injectThemeDirective(code: string, theme: string): string {
-  if (/%%\s*\{\s*init\s*:/i.test(code) || code.includes("%%{init:") || code.includes("%%{init}")) {
+  if (hasThemeInCode(code) || /%%\s*\{\s*init\s*:/i.test(code) || code.includes("%%{init:") || code.includes("%%{init}")) {
     return code;
   }
 

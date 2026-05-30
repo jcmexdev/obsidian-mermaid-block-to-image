@@ -7,7 +7,8 @@ import {
   findMermaidBlockAtLine,
   getCodeHash,
   injectThemeDirective,
-  stripInjectedTheme
+  stripInjectedTheme,
+  hasThemeInCode
 } from '../markdown-parser';
 
 
@@ -323,6 +324,33 @@ describe('Markdown Parser', () => {
         const code = "---\ntitle: Simple Flow\n---\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B";
         const result = stripInjectedTheme(code);
         expect(result).toBe("---\ntitle: Simple Flow\n---\ngraph TD\n  A --> B");
+      });
+    });
+
+    describe('hasThemeInCode', () => {
+      it('should return false if no theme is defined in the code', () => {
+        const code = "graph TD\n  A --> B";
+        expect(hasThemeInCode(code)).toBe(false);
+      });
+
+      it('should return true if an init block defines a theme', () => {
+        const code = "%%{init: {'theme': 'forest'}}%%\ngraph TD";
+        expect(hasThemeInCode(code)).toBe(true);
+      });
+
+      it('should return true if frontmatter defines a theme', () => {
+        const code = "---\ntheme: dark\n---\ngraph TD";
+        expect(hasThemeInCode(code)).toBe(true);
+      });
+
+      it('should return true if nested config frontmatter defines a theme', () => {
+        const code = "---\nconfig:\n  theme: neutral\n---\ngraph TD";
+        expect(hasThemeInCode(code)).toBe(true);
+      });
+
+      it('should return false if frontmatter exists but has no theme', () => {
+        const code = "---\ntitle: Simple Flow\n---\ngraph TD";
+        expect(hasThemeInCode(code)).toBe(false);
       });
     });
   });

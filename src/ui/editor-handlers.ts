@@ -7,7 +7,8 @@ import {
   parseImageLink,
   slugify,
   injectThemeDirective,
-  stripInjectedTheme
+  stripInjectedTheme,
+  hasThemeInCode
 } from "../utils/markdown-parser";
 
 /**
@@ -154,7 +155,9 @@ export async function downloadMermaidAsFile(
     }
     const renderId = `mermaid-local-render-${Date.now()}`;
     const effectiveTheme = getEffectiveTheme(plugin);
-    const themedCode = injectThemeDirective(block.code || "", effectiveTheme);
+    const themedCode = hasThemeInCode(block.code || "")
+      ? (block.code || "")
+      : injectThemeDirective(block.code || "", effectiveTheme);
     const { svg } = await mermaid.render(renderId, themedCode);
     if (!svg) {
       throw new Error("Local Mermaid render returned empty output.");
@@ -287,21 +290,28 @@ export async function convertMermaidBlockToUrl(
   try {
     let url = "";
 
+    const hasTheme = hasThemeInCode(block.code || "");
+    const effectiveTheme = getEffectiveTheme(plugin);
+
     if (service === "kroki") {
       const server = (plugin.settings.krokiServerUrl || "https://kroki.io").replace(/\/$/, "");
       const krokiFormat = format === "webp" ? "png" : format;
-      const effectiveTheme = getEffectiveTheme(plugin);
-      const themedCode = injectThemeDirective(block.code || "", effectiveTheme);
+      const themedCode = hasTheme
+        ? (block.code || "")
+        : injectThemeDirective(block.code || "", effectiveTheme);
       const base64 = await compressAndEncode(themedCode);
       url = `${server}/mermaid/${krokiFormat}/${base64}`;
     } else {
       const server = (plugin.settings.mermaidInkServerUrl || "https://mermaid.ink").replace(/\/$/, "");
-      const effectiveTheme = getEffectiveTheme(plugin);
-      const themedCode = injectThemeDirective(block.code || "", effectiveTheme);
-      const state = {
+      const themedCode = hasTheme
+        ? (block.code || "")
+        : injectThemeDirective(block.code || "", effectiveTheme);
+      const state: { code: string; mermaid?: { theme: string } } = {
         code: themedCode,
-        mermaid: { theme: effectiveTheme },
       };
+      if (!hasTheme) {
+        state.mermaid = { theme: effectiveTheme };
+      }
       const base64 = await compressAndEncode(JSON.stringify(state));
       
       if (format === "svg") {
