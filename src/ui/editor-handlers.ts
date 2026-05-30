@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Notice } from "obsidian";
+import { App, Component, Editor, MarkdownRenderer, MarkdownView, Notice } from "obsidian";
 import MermaidToImagePlugin from "../main";
 import {
   extractTitle,
@@ -104,6 +104,36 @@ async function decodeDiagramFromUrl(url: string): Promise<string> {
   throw new Error("URL is not a recognized Kroki or Mermaid.ink diagram link.");
 }
 
+interface MermaidInstance {
+  render: (id: string, text: string) => Promise<{ svg: string }>;
+}
+
+/**
+ * Ensures Obsidian's internal Mermaid engine is fully loaded and initialized.
+ * If not already loaded (e.g. at vault startup before opening a mermaid file),
+ * it forces loading by rendering a dummy mermaid block using MarkdownRenderer.
+ */
+async function ensureMermaidLoaded(app: App): Promise<MermaidInstance | undefined> {
+  const win = window as Window & { mermaid?: MermaidInstance };
+  const mermaid = win.mermaid;
+  if (mermaid) return mermaid;
+
+  const dummy = activeDocument.body.createDiv();
+  dummy.style.display = "none";
+  try {
+    const comp = new Component();
+    comp.load();
+    await MarkdownRenderer.render(app, "```mermaid\nflowchart TD\n  A\n```", dummy, "", comp);
+    comp.unload();
+  } catch (err) {
+    console.error("Failed to force load mermaid via MarkdownRenderer:", err);
+  } finally {
+    dummy.remove();
+  }
+
+  return win.mermaid;
+}
+
 /**
  * Downloads a Mermaid block to the user's PC as an image file.
  * Formats: SVG, PNG, or WebP. Renders locally using Obsidian's Mermaid engine.
@@ -149,7 +179,7 @@ export async function downloadMermaidAsFile(
   const loadingNotice = new Notice(`Generating ${format.toUpperCase()} diagram for download...`, 0);
 
   try {
-    const mermaid = (window as Window & { mermaid?: { render: (id: string, text: string) => Promise<{ svg: string }> } }).mermaid;
+    const mermaid = await ensureMermaidLoaded(app);
     if (!mermaid) {
       throw new Error("Obsidian's global 'mermaid' instance is not available.");
     }
