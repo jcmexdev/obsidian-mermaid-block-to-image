@@ -26,12 +26,9 @@ export function registerContextMenu(plugin: MermaidToImagePlugin) {
       
       if (block) {
         if (block.type === "active") {
-          const downloadFormat = plugin.settings.downloadFormat.toUpperCase();
-          const urlFormat = plugin.settings.urlFormat.toUpperCase();
-
           menu.addItem((item) => {
             item
-              .setTitle(`Download Mermaid as ${downloadFormat}`)
+              .setTitle("Download image")
               .setIcon("download")
               .onClick(async () => {
                 await downloadMermaidAsFile(plugin.app, editor, plugin);
@@ -40,7 +37,7 @@ export function registerContextMenu(plugin: MermaidToImagePlugin) {
 
           menu.addItem((item) => {
             item
-              .setTitle(`Mermaid to ${urlFormat} URL`)
+              .setTitle("Convert to URL")
               .setIcon("link")
               .onClick(async () => {
                 await convertMermaidBlockToUrl(plugin.app, editor, plugin);
@@ -49,8 +46,8 @@ export function registerContextMenu(plugin: MermaidToImagePlugin) {
         } else if (block.type === "commented") {
           menu.addItem((item) => {
             item
-              .setTitle("Restore URL to Mermaid block")
-              .setIcon("code-2")
+              .setTitle("Restore URL to Mermaid")
+              .setIcon("history")
               .onClick(async () => {
                 await restoreUrlToCodeBlock(plugin.app, editor, plugin);
               });
@@ -67,8 +64,8 @@ export function registerContextMenu(plugin: MermaidToImagePlugin) {
           )) {
             menu.addItem((item) => {
               item
-                .setTitle("Restore URL to Mermaid block")
-                .setIcon("code-2")
+                .setTitle("Restore URL to Mermaid")
+                .setIcon("history")
                 .onClick(async () => {
                   await restoreUrlToCodeBlock(plugin.app, editor, plugin);
                 });

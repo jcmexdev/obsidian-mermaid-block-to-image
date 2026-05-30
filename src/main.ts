@@ -31,7 +31,7 @@ export default class MermaidToImagePlugin extends Plugin {
     // 4. Add commands in the Obsidian command palette
     this.addCommand({
       id: "download-mermaid-as-image",
-      name: "Download block as image",
+      name: "Download image",
       editorCallback: async (editor: Editor, _view: MarkdownView) => {
         await downloadMermaidAsFile(this.app, editor, this);
       },
@@ -39,7 +39,7 @@ export default class MermaidToImagePlugin extends Plugin {
 
     this.addCommand({
       id: "convert-mermaid-to-url",
-      name: "Convert block to image URL",
+      name: "Convert to URL",
       editorCallback: async (editor: Editor, _view: MarkdownView) => {
         await convertMermaidBlockToUrl(this.app, editor, this);
       },
@@ -47,7 +47,7 @@ export default class MermaidToImagePlugin extends Plugin {
 
     this.addCommand({
       id: "restore-url-to-mermaid",
-      name: "Restore URL to block",
+      name: "Restore URL to Mermaid",
       editorCallback: async (editor: Editor, _view: MarkdownView) => {
         await restoreUrlToCodeBlock(this.app, editor, this);
       },
