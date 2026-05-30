@@ -292,6 +292,12 @@ describe('Markdown Parser', () => {
         const result = injectThemeDirective(code, 'dark');
         expect(result).toBe(code);
       });
+
+      it('should inject after YAML frontmatter if present', () => {
+        const code = "---\ntitle: Simple Flow\n---\ngraph TD\n  A --> B";
+        const result = injectThemeDirective(code, 'dark');
+        expect(result).toBe("---\ntitle: Simple Flow\n---\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B");
+      });
     });
 
     describe('stripInjectedTheme', () => {
@@ -311,6 +317,12 @@ describe('Markdown Parser', () => {
         const code = "%%{init: {'theme': 'custom-theme-name'}}%%\ngraph TD";
         const result = stripInjectedTheme(code);
         expect(result).toBe(code);
+      });
+
+      it('should strip injected theme directive even when placed after frontmatter', () => {
+        const code = "---\ntitle: Simple Flow\n---\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B";
+        const result = stripInjectedTheme(code);
+        expect(result).toBe("---\ntitle: Simple Flow\n---\ngraph TD\n  A --> B");
       });
     });
   });

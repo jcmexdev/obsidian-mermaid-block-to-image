@@ -424,6 +424,8 @@ export function slugify(text: string): string {
 /**
  * Injects a theme initialization directive into the Mermaid code block
  * if the block does not already contain an init block.
+ * Handles blocks starting with YAML frontmatter correctly by inserting
+ * the directive after the closing frontmatter delimiter.
  * 
  * @param code The diagram source code.
  * @param theme The theme name to inject.
@@ -433,13 +435,42 @@ export function injectThemeDirective(code: string, theme: string): string {
   if (/%%\s*\{\s*init\s*:/i.test(code) || code.includes("%%{init:") || code.includes("%%{init}")) {
     return code;
   }
+
+  const trimmed = code.trim();
+  if (trimmed.startsWith("---")) {
+    const lines = code.split("\n");
+    let openingIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]?.trim() === "---") {
+        openingIndex = i;
+        break;
+      }
+    }
+
+    if (openingIndex !== -1) {
+      let closingIndex = -1;
+      for (let i = openingIndex + 1; i < lines.length; i++) {
+        if (lines[i]?.trim() === "---") {
+          closingIndex = i;
+          break;
+        }
+      }
+
+      if (closingIndex !== -1) {
+        const before = lines.slice(0, closingIndex + 1).join("\n");
+        const after = lines.slice(closingIndex + 1).join("\n");
+        return `${before}\n%%{init: {'theme': '${theme}'}}%%\n${after}`;
+      }
+    }
+  }
+
   return `%%{init: {'theme': '${theme}'}}%%\n${code}`;
 }
 
 /**
  * Regex to detect and strip auto-injected theme directives on restore.
  */
-export const INJECTED_THEME_REGEX = /^%%\{init:\s*\{\s*['"]theme['"]\s*:\s*['"](?:default|dark|forest|neutral|base)['"]\s*\}\}%%\r?\n/i;
+export const INJECTED_THEME_REGEX = /(?:^|(\r?\n))%%\{init:\s*\{\s*['"]theme['"]\s*:\s*['"](?:default|dark|forest|neutral|base)['"]\s*\}\}%%\r?\n/i;
 
 /**
  * Strips the auto-injected theme directive if present.
@@ -448,6 +479,6 @@ export const INJECTED_THEME_REGEX = /^%%\{init:\s*\{\s*['"]theme['"]\s*:\s*['"](
  * @returns The diagram source code with the injected theme directive removed.
  */
 export function stripInjectedTheme(code: string): string {
-  return code.replace(INJECTED_THEME_REGEX, "");
+  return code.replace(INJECTED_THEME_REGEX, "$1");
 }
 
