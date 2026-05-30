@@ -119,6 +119,7 @@ async function ensureMermaidLoaded(app: App): Promise<MermaidInstance | undefine
   if (mermaid) return mermaid;
 
   const dummy = activeDocument.body.createDiv();
+  // eslint-disable-next-line obsidianmd/no-static-styles-assignment
   dummy.style.display = "none";
   try {
     const comp = new Component();

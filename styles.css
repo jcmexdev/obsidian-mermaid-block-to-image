@@ -3,14 +3,62 @@
 /* Ensure the containers are relative so absolute buttons are positioned correctly */
 .cm-preview-code-block.cm-lang-mermaid,
 .block-language-mermaid,
+.mermaid,
 .internal-embed {
   position: relative !important;
 }
 
+/* Base styles for active Mermaid block buttons (to look identical to native Obsidian buttons) */
+.mermaid-action-btn-convert,
+.mermaid-action-btn-download-active {
+  position: absolute !important;
+  background-color: var(--background-primary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: var(--radius-s) !important;
+  color: var(--text-muted) !important;
+  cursor: pointer !important;
+  height: 24px !important;
+  width: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.2s ease-in-out !important;
+  z-index: 10 !important;
+  opacity: 0 !important;
+}
+
+/* Hover styles for active block buttons */
+.mermaid-action-btn-convert:hover,
+.mermaid-action-btn-download-active:hover {
+  background-color: var(--background-modifier-hover) !important;
+  color: var(--text-normal) !important;
+}
+
+/* Reveal active block buttons on hover of parent container */
+.cm-embed-block:hover .mermaid-action-btn-convert,
+.cm-embed-block:hover .mermaid-action-btn-download-active,
+.block-language-mermaid:hover .mermaid-action-btn-convert,
+.block-language-mermaid:hover .mermaid-action-btn-download-active,
+.mermaid:hover .mermaid-action-btn-convert,
+.mermaid:hover .mermaid-action-btn-download-active {
+  opacity: 1 !important;
+}
+
 /* Shift the convert button to the left of Obsidian's native code block edit button */
 .cm-embed-block .mermaid-action-btn-convert.edit-block-button,
-.block-language-mermaid .mermaid-action-btn-convert.edit-block-button {
+.block-language-mermaid .mermaid-action-btn-convert.edit-block-button,
+.mermaid .mermaid-action-btn-convert.edit-block-button {
   inset-inline-end: calc(var(--size-2-2) + 40px) !important;
+  top: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+}
+
+/* Shift the download button on active block to the left of convert button */
+.cm-embed-block .mermaid-action-btn-download-active.edit-block-button,
+.block-language-mermaid .mermaid-action-btn-download-active.edit-block-button,
+.mermaid .mermaid-action-btn-download-active.edit-block-button {
+  inset-inline-end: calc(var(--size-2-2) + 80px) !important;
   top: 8px !important;
   left: auto !important;
   bottom: auto !important;
@@ -59,6 +107,7 @@
 
 /* Ensure consistent button icon sizes */
 .mermaid-action-btn-convert svg,
+.mermaid-action-btn-download-active svg,
 .mermaid-action-btn-restore svg,
 .mermaid-action-btn-download svg {
   width: 14px;

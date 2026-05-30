@@ -1,6 +1,6 @@
 import { MarkdownView, setIcon, Notice, requestUrl } from "obsidian";
 import type MermaidToImagePlugin from "../main";
-import { convertMermaidBlockToUrl, restoreUrlToCodeBlock } from "./editor-handlers";
+import { convertMermaidBlockToUrl, restoreUrlToCodeBlock, downloadMermaidAsFile } from "./editor-handlers";
 import { extractTitle, slugify } from "../utils/markdown-parser";
 
 const MERMAID_SELECTOR = ".block-language-mermaid, .mermaid";
@@ -51,21 +51,37 @@ function attachConvertButton(container: HTMLElement, plugin: MermaidToImagePlugi
   if (container.hasAttribute(PROCESSED_ATTR)) return;
   container.setAttribute(PROCESSED_ATTR, "true");
 
-  if (container.querySelector(".mermaid-action-btn-convert")) return;
+  if (!container.querySelector(".mermaid-action-btn-convert")) {
+    const btn = container.createDiv({ cls: "edit-block-button mermaid-action-btn-convert" });
+    btn.setAttribute("aria-label", "Convert to image URL");
+    setIcon(btn, "image");
 
-  const btn = container.createDiv({ cls: "edit-block-button mermaid-action-btn-convert" });
-  btn.setAttribute("aria-label", "Convert to image URL");
-  setIcon(btn, "image");
+    plugin.registerDomEvent(btn, "click", async (e) => {
+      e.stopPropagation();
+      e.preventDefault();
 
-  plugin.registerDomEvent(btn, "click", async (e) => {
-    e.stopPropagation();
-    e.preventDefault();
+      const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      const editor = (activeView && activeView.getMode() === "source") ? activeView.editor : null;
+      
+      await convertMermaidBlockToUrl(plugin.app, editor, plugin, targetLine);
+    });
+  }
 
-    const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-    const editor = (activeView && activeView.getMode() === "source") ? activeView.editor : null;
-    
-    await convertMermaidBlockToUrl(plugin.app, editor, plugin, targetLine);
-  });
+  if (!container.querySelector(".mermaid-action-btn-download-active")) {
+    const downloadBtn = container.createDiv({ cls: "edit-block-button mermaid-action-btn-download-active" });
+    downloadBtn.setAttribute("aria-label", "Download Mermaid as image");
+    setIcon(downloadBtn, "download");
+
+    plugin.registerDomEvent(downloadBtn, "click", async (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      const editor = (activeView && activeView.getMode() === "source") ? activeView.editor : null;
+      
+      await downloadMermaidAsFile(plugin.app, editor, plugin, targetLine);
+    });
+  }
 }
 
 /**
