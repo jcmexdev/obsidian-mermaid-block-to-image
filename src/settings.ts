@@ -46,17 +46,17 @@ export class MermaidSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl).setHeading().setName("Mermaid Block to Image Configuration");
+    new Setting(containerEl).setHeading().setName("Mermaid block to image configuration");
 
     // 1. Local image format configuration
     new Setting(containerEl)
       .setName("Local image format")
-      .setDesc("Select the output image format. SVG is 100% offline, crisp, and preserves theme colors. PNG/WebP are also generated locally offline using a Canvas.")
+      .setDesc("Select the output image format. Svg is 100% offline, crisp, and preserves theme colors. PNG/WebP are also generated locally offline using a canvas.")
       .addDropdown((dropdown) =>
         dropdown
-          .addOption("svg", "SVG (Scalable Vector Graphics)")
-          .addOption("png", "PNG (Portable Network Graphics)")
-          .addOption("webp", "WebP (Modern Image Format)")
+          .addOption("svg", "Svg (scalable vector graphics)")
+          .addOption("png", "PNG (portable network graphics)")
+          .addOption("webp", "WebP (modern image format)")
           .setValue(this.plugin.settings.localFormat)
           .onChange(async (value: "svg" | "png" | "webp") => {
             this.plugin.settings.localFormat = value;
@@ -87,7 +87,7 @@ export class MermaidSettingTab extends PluginSettingTab {
         .setDesc("Folder in your vault where images will be stored.")
         .addText((text) =>
           text
-            .setPlaceholder("assets/diagrams")
+            .setPlaceholder("Assets/diagrams")
             .setValue(this.plugin.settings.customFolderPath)
             .onChange(async (value) => {
               this.plugin.settings.customFolderPath = value.trim();

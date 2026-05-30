@@ -1,6 +1,6 @@
-import { App, Editor, Notice, TFile } from "obsidian";
-import { findMermaidBlockAtLine, getCodeHash, formatCommentedBlock, extractTitle, slugify } from "../utils/markdown-parser";
+import { App, Editor, MarkdownView, Notice, TFile } from "obsidian";
 import MermaidToImagePlugin from "../main";
+import { extractTitle, findMermaidBlockAtLine, formatCommentedBlock, getCodeHash, slugify } from "../utils/markdown-parser";
 
 /**
  * Ensures that a nested folder path exists in the vault,
@@ -61,7 +61,7 @@ export async function convertMermaidBlockToLocalImage(app: App, editor: Editor, 
     let arrayBuffer: ArrayBuffer;
 
     // 1. Render SVG locally and offline using Obsidian's Mermaid engine
-    const mermaid = (window as any).mermaid;
+    const mermaid = (window as Window & { mermaid?: { render: (id: string, text: string) => Promise<{ svg: string }> } }).mermaid;
     if (!mermaid) {
       throw new Error("Obsidian's global 'mermaid' instance is not available.");
     }
@@ -75,12 +75,17 @@ export async function convertMermaidBlockToLocalImage(app: App, editor: Editor, 
       arrayBuffer = new TextEncoder().encode(svg).buffer;
     } else {
       // 2. Convert SVG string to a Base64 data: URI to avoid canvas HTML5 security issues (tainted canvas)
-      const svgDataURL = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+      const bytes = new TextEncoder().encode(svg);
+      let binString = "";
+      bytes.forEach((b) => {
+        binString += String.fromCharCode(b);
+      });
+      const svgDataURL = "data:image/svg+xml;base64," + btoa(binString);
 
       const img = new Image();
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
-        img.onerror = (e) => reject(new Error("Failed to load local SVG for conversion: " + e));
+        img.onerror = () => reject(new Error("Failed to load local SVG for conversion"));
         img.src = svgDataURL;
       });
 
@@ -90,14 +95,18 @@ export async function convertMermaidBlockToLocalImage(app: App, editor: Editor, 
       if (!width || !height) {
         const viewBoxMatch = svg.match(/viewBox=["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/);
         if (viewBoxMatch) {
-          width = parseFloat(viewBoxMatch[3]);
-          height = parseFloat(viewBoxMatch[4]);
+          const wStr = viewBoxMatch[3];
+          const hStr = viewBoxMatch[4];
+          if (wStr !== undefined && hStr !== undefined) {
+            width = parseFloat(wStr);
+            height = parseFloat(hStr);
+          }
         }
       }
       if (!width) width = 800;
       if (!height) height = 600;
 
-      const canvas = document.createElement("canvas");
+      const canvas = activeDocument.createEl("canvas");
       canvas.width = width;
       canvas.height = height;
       
@@ -169,6 +178,12 @@ export async function convertMermaidBlockToLocalImage(app: App, editor: Editor, 
       { line: block.startLine, ch: 0 },
       { line: endLine, ch: endCh }
     );
+
+    // Force a re-render of the preview mode to clear cached HTML and reload the new image
+    const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView) {
+      activeView.previewMode.rerender(true);
+    }
 
     loadingNotice.hide();
     new Notice(`Mermaid diagram successfully saved as local ${format.toUpperCase()}!`);
