@@ -297,8 +297,9 @@ export async function convertMermaidBlockToUrl(
     } else {
       const server = (plugin.settings.mermaidInkServerUrl || "https://mermaid.ink").replace(/\/$/, "");
       const effectiveTheme = getEffectiveTheme(plugin);
+      const themedCode = injectThemeDirective(block.code || "", effectiveTheme);
       const state = {
-        code: block.code,
+        code: themedCode,
         mermaid: { theme: effectiveTheme },
       };
       const base64 = await compressAndEncode(JSON.stringify(state));
