@@ -1,8 +1,76 @@
-/*
+/* Styles for Mermaid Block to Image interactive buttons */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* Ensure the containers are relative so absolute buttons are positioned correctly */
+.cm-preview-code-block.cm-lang-mermaid,
+.block-language-mermaid,
+.internal-embed {
+  position: relative !important;
+}
 
-If your plugin does not need CSS, delete this file.
+/* Shift the convert button to the left of Obsidian's native code block edit button */
+.cm-embed-block .mermaid-action-btn-convert.edit-block-button,
+.block-language-mermaid .mermaid-action-btn-convert.edit-block-button {
+  inset-inline-end: calc(var(--size-2-2) + 40px) !important;
+  top: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+}
 
-*/
+/* Base styles for our custom action buttons on image embeds */
+.mermaid-action-btn-restore.edit-block-button,
+.mermaid-action-btn-download.edit-block-button {
+  position: absolute !important;
+  top: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+  display: flex !important;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  z-index: 10;
+}
+
+/* Position restore button */
+.cm-embed-block .internal-embed .mermaid-action-btn-restore.edit-block-button,
+.cm-embed-block .image-embed .mermaid-action-btn-restore.edit-block-button {
+  right: calc(var(--size-2-2) + 40px) !important;
+}
+.markdown-rendered .internal-embed .mermaid-action-btn-restore.edit-block-button,
+.markdown-rendered .image-embed .mermaid-action-btn-restore.edit-block-button {
+  right: 8px !important;
+}
+
+/* Position download button (shifted further left to be side-by-side with restore) */
+.cm-embed-block .internal-embed .mermaid-action-btn-download.edit-block-button,
+.cm-embed-block .image-embed .mermaid-action-btn-download.edit-block-button {
+  right: calc(var(--size-2-2) + 80px) !important;
+}
+.markdown-rendered .internal-embed .mermaid-action-btn-download.edit-block-button,
+.markdown-rendered .image-embed .mermaid-action-btn-download.edit-block-button {
+  right: 48px !important;
+}
+
+/* Reveal buttons when hovering over the image embed */
+.internal-embed:hover .mermaid-action-btn-restore.edit-block-button,
+.internal-embed:hover .mermaid-action-btn-download.edit-block-button,
+.image-embed:hover .mermaid-action-btn-restore.edit-block-button,
+.image-embed:hover .mermaid-action-btn-download.edit-block-button {
+  opacity: 1 !important;
+}
+
+/* Ensure consistent button icon sizes */
+.mermaid-action-btn-convert svg,
+.mermaid-action-btn-restore svg,
+.mermaid-action-btn-download svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+/* Settings tab formats guide */
+.mermaid-settings-guide {
+  white-space: pre-line;
+  margin-bottom: 1.5em;
+  padding: 10px;
+  background-color: var(--background-secondary);
+  border-radius: 4px;
+}

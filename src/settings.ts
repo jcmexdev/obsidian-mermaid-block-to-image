@@ -6,29 +6,36 @@ import MermaidToImagePlugin from "./main";
  */
 export interface MermaidSettings {
   /**
-   * The base URL of the Kroki server (defaults to https://kroki.io).
+   * Format used when downloading diagrams directly to the PC.
    */
-  krokiInstanceUrl: string;
+  downloadFormat: "svg" | "png" | "webp";
   /**
-   * Where to save the generated PNG images:
-   * - 'same-folder': In the same folder as the active note.
-   * - 'custom-folder': In a user-specified folder path.
+   * Format used when converting diagrams to online URLs.
    */
-  storageLocation: "same-folder" | "custom-folder";
+  urlFormat: "svg" | "png" | "webp";
   /**
-   * The vault folder path (e.g., 'assets/diagrams') where images will be stored
-   * when `storageLocation` is 'custom-folder'.
+   * The online service to use for generating URL encoded diagram images.
    */
-  customFolderPath: string;
+  service: "kroki" | "mermaid-ink";
+  /**
+   * Custom server URL for Kroki.
+   */
+  krokiServerUrl: string;
+  /**
+   * Custom server URL for Mermaid.ink.
+   */
+  mermaidInkServerUrl: string;
 }
 
 /**
  * Default plugin settings.
  */
 export const DEFAULT_SETTINGS: MermaidSettings = {
-  krokiInstanceUrl: "https://kroki.io",
-  storageLocation: "same-folder",
-  customFolderPath: "",
+  downloadFormat: "png",
+  urlFormat: "png",
+  service: "mermaid-ink",
+  krokiServerUrl: "https://kroki.io",
+  mermaidInkServerUrl: "https://mermaid.ink",
 };
 
 /**
@@ -46,49 +53,100 @@ export class MermaidSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl).setHeading().setName("Settings for Mermaid block to image");
+    new Setting(containerEl).setHeading().setName("Mermaid block to image configuration");
 
-    // 1. Kroki server URL configuration
+    // Guide explaining formats
+    const descEl = containerEl.createDiv({ cls: "setting-item-description" });
+    descEl.setText(
+      "Format Guide:\n" +
+      "• SVG: Vector format. Diagrams will be 100% crisp at any zoom level and use very little space.\n" +
+      "• PNG: Standard raster format with transparent background. Great for copying and pasting into other apps.\n" +
+      "• WebP: Modern raster format with high compression and excellent quality."
+    );
+    descEl.addClass("mermaid-settings-guide");
+
+    // 1. Download format configuration
     new Setting(containerEl)
-      .setName("Kroki instance URL")
-      .setDesc("The base URL of the Kroki server. Default is the free public instance: https://Kroki.io. You can self-host your own.")
-      .addText((text) =>
-        text
-          .setPlaceholder("https://kroki.io")
-          .setValue(this.plugin.settings.krokiInstanceUrl)
-          .onChange(async (value) => {
-            this.plugin.settings.krokiInstanceUrl = value.trim() || "https://kroki.io";
+      .setName("Download image format")
+      .setDesc("Image format used when downloading the diagram directly to your computer.")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("svg", "Svg (scalable vector graphics)")
+          .addOption("png", "PNG (portable network graphics)")
+          .addOption("webp", "WebP (modern image format)")
+          .setValue(this.plugin.settings.downloadFormat)
+          .onChange(async (value: "svg" | "png" | "webp") => {
+            this.plugin.settings.downloadFormat = value;
             await this.plugin.saveSettings();
           })
       );
 
-    // 2. Storage location strategy configuration
+    // 2. URL service configuration
     new Setting(containerEl)
-      .setName("Storage location")
-      .setDesc("Where should the generated PNG images be saved?")
+      .setName("URL service provider")
+      .setDesc("Online service used to render and generate image URL links.")
       .addDropdown((dropdown) =>
         dropdown
-          .addOption("same-folder", "Same folder as the note")
-          .addOption("custom-folder", "Custom folder in the vault")
-          .setValue(this.plugin.settings.storageLocation)
-          .onChange(async (value: "same-folder" | "custom-folder") => {
-            this.plugin.settings.storageLocation = value;
+          .addOption("mermaid-ink", "Mermaid.ink (Official)")
+          .addOption("kroki", "Kroki.io")
+          .setValue(this.plugin.settings.service)
+          .onChange(async (value: "kroki" | "mermaid-ink") => {
+            this.plugin.settings.service = value;
+            
+            // Kroki does not support webp. If it was active, fallback to png.
+            if (value === "kroki" && this.plugin.settings.urlFormat === "webp") {
+              this.plugin.settings.urlFormat = "png";
+            }
+            
             await this.plugin.saveSettings();
             this.display();
           })
       );
 
-    // 3. Custom folder path configuration (displayed only if 'custom-folder' is active)
-    if (this.plugin.settings.storageLocation === "custom-folder") {
+    // 3. URL format configuration (dynamic options depending on service)
+    const isKroki = this.plugin.settings.service === "kroki";
+    new Setting(containerEl)
+      .setName("URL image format")
+      .setDesc("Image format for the generated markdown URL link. Kroki does not support WebP.")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("svg", "Svg (scalable vector graphics)");
+        dropdown.addOption("png", "PNG (portable network graphics)");
+        
+        if (!isKroki) {
+          dropdown.addOption("webp", "WebP (modern image format)");
+        }
+        
+        dropdown.setValue(this.plugin.settings.urlFormat);
+        dropdown.onChange(async (value: "svg" | "png" | "webp") => {
+          this.plugin.settings.urlFormat = value;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    // 4. Custom Server URL configuration
+    if (isKroki) {
       new Setting(containerEl)
-        .setName("Custom folder path")
-        .setDesc("Folder in your vault where images will be stored.")
+        .setName("Kroki server URL")
+        .setDesc("Base URL of the Kroki server to use.")
         .addText((text) =>
           text
-            .setPlaceholder("Assets/diagrams")
-            .setValue(this.plugin.settings.customFolderPath)
+            .setPlaceholder("https://kroki.io")
+            .setValue(this.plugin.settings.krokiServerUrl)
             .onChange(async (value) => {
-              this.plugin.settings.customFolderPath = value.trim();
+              this.plugin.settings.krokiServerUrl = value.trim() || "https://kroki.io";
+              await this.plugin.saveSettings();
+            })
+        );
+    } else {
+      new Setting(containerEl)
+        .setName("Mermaid.ink server URL")
+        .setDesc("Base URL of the Mermaid.ink server to use.")
+        .addText((text) =>
+          text
+            .setPlaceholder("https://mermaid.ink")
+            .setValue(this.plugin.settings.mermaidInkServerUrl)
+            .onChange(async (value) => {
+              this.plugin.settings.mermaidInkServerUrl = value.trim() || "https://mermaid.ink";
               await this.plugin.saveSettings();
             })
         );

@@ -1,135 +1,446 @@
-import { App, Editor, Notice, TFile } from "obsidian";
-import { findMermaidBlockAtLine, getCodeHash, formatCommentedBlock } from "../utils/markdown-parser";
-import { KrokiClient } from "../core/kroki-client";
+import { App, Editor, MarkdownView, Notice } from "obsidian";
 import MermaidToImagePlugin from "../main";
+import { extractTitle, findMermaidBlockAtLine, getCodeHash, parseImageLink, slugify } from "../utils/markdown-parser";
 
 /**
- * Ensures that a nested folder path exists in the vault,
- * recursively creating directories if needed.
- * 
- * @param app The Obsidian App instance.
- * @param folderPath The folder path to verify or create.
+ * Compresses a string using deflate and encodes it into URL-safe base64.
+ * Uses native browser CompressionStream.
  */
-export async function ensureFolderExists(app: App, folderPath: string): Promise<void> {
-  if (!folderPath || folderPath === "/" || folderPath === ".") return;
+async function compressAndEncode(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const stream = new Blob([data]).stream();
+  const compressedStream = stream.pipeThrough(new CompressionStream("deflate"));
+  const compressedBuffer = await new Response(compressedStream).arrayBuffer();
   
-  const folder = app.vault.getAbstractFileByPath(folderPath);
-  if (folder) return;
+  const bytes = new Uint8Array(compressedBuffer);
+  let binString = "";
+  bytes.forEach((b) => {
+    binString += String.fromCharCode(b);
+  });
+  return btoa(binString)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
-  const lastSlash = folderPath.lastIndexOf("/");
-  if (lastSlash !== -1) {
-    const parent = folderPath.substring(0, lastSlash);
-    await ensureFolderExists(app, parent);
+/**
+ * Decodes a URL-safe base64 string and decompresses it using deflate.
+ * Uses native browser DecompressionStream.
+ */
+async function decodeAndDecompress(base64: string): Promise<string> {
+  let standardBase64 = base64.replace(/-/g, "+").replace(/_/g, "/");
+  while (standardBase64.length % 4) {
+    standardBase64 += "=";
+  }
+  
+  const binString = atob(standardBase64);
+  const bytes = new Uint8Array(binString.length);
+  for (let i = 0; i < binString.length; i++) {
+    bytes[i] = binString.charCodeAt(i);
+  }
+  
+  const stream = new Blob([bytes]).stream();
+  const decompressedStream = stream.pipeThrough(new DecompressionStream("deflate"));
+  const decompressedBuffer = await new Response(decompressedStream).arrayBuffer();
+  
+  return new TextDecoder().decode(decompressedBuffer);
+}
+
+/**
+ * Decodes the Mermaid diagram code from a Kroki or Mermaid.ink URL.
+ */
+async function decodeDiagramFromUrl(url: string): Promise<string> {
+  if (url.includes("mermaid.ink/")) {
+    const pakoIdx = url.indexOf("/pako:");
+    if (pakoIdx === -1) {
+      throw new Error("Invalid Mermaid.ink URL format (missing '/pako:')");
+    }
+    const base64 = url.substring(pakoIdx + 6).split("?")[0] || "";
+    const jsonStr = await decodeAndDecompress(base64);
+    const state = JSON.parse(jsonStr) as { code?: unknown };
+    if (!state || typeof state.code !== "string") {
+      throw new Error("Decoded state does not contain diagram code.");
+    }
+    return state.code;
+  }
+  
+  if (url.includes("kroki.io/") || url.includes("/mermaid/")) {
+    const mermaidIdx = url.indexOf("/mermaid/");
+    if (mermaidIdx === -1) {
+      throw new Error("Invalid Kroki URL format");
+    }
+    const pathPart = url.substring(mermaidIdx + 9);
+    const slashIdx = pathPart.indexOf("/");
+    if (slashIdx === -1) {
+      throw new Error("Invalid Kroki URL format (missing base64 segment)");
+    }
+    const base64 = pathPart.substring(slashIdx + 1).split("?")[0] || "";
+    return await decodeAndDecompress(base64);
+  }
+  
+  throw new Error("URL is not a recognized Kroki or Mermaid.ink diagram link.");
+}
+
+/**
+ * Downloads a Mermaid block to the user's PC as an image file.
+ * Formats: SVG, PNG, or WebP. Renders locally using Obsidian's Mermaid engine.
+ */
+export async function downloadMermaidAsFile(
+  app: App,
+  editor: Editor | null,
+  plugin: MermaidToImagePlugin,
+  targetLine?: number
+): Promise<void> {
+  let line = targetLine;
+  if (line === undefined && editor) {
+    line = editor.getCursor().line;
+  }
+  if (line === undefined) {
+    new Notice("Could not determine diagram line number.");
+    return;
   }
 
+  let lines: string[] = [];
+  if (editor) {
+    const lineCount = editor.lineCount();
+    for (let i = 0; i < lineCount; i++) {
+      lines.push(editor.getLine(i));
+    }
+  } else {
+    const activeFile = app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("No active note found. Cannot download image.");
+      return;
+    }
+    const fileContent = await app.vault.read(activeFile);
+    lines = fileContent.split("\n");
+  }
+
+  const block = findMermaidBlockAtLine(lines, line);
+  if (!block) {
+    new Notice("No active or commented Mermaid code block found.");
+    return;
+  }
+
+  const format = plugin.settings.downloadFormat;
+  const loadingNotice = new Notice(`Generating ${format.toUpperCase()} diagram for download...`, 0);
+
   try {
-    await app.vault.createFolder(folderPath);
-  } catch {
-    // Ignored if the folder was created concurrently
+    const mermaid = (window as Window & { mermaid?: { render: (id: string, text: string) => Promise<{ svg: string }> } }).mermaid;
+    if (!mermaid) {
+      throw new Error("Obsidian's global 'mermaid' instance is not available.");
+    }
+    const renderId = `mermaid-local-render-${Date.now()}`;
+    const { svg } = await mermaid.render(renderId, block.code || "");
+    if (!svg) {
+      throw new Error("Local Mermaid render returned empty output.");
+    }
+
+    let downloadBlob: Blob;
+    if (format === "svg") {
+      downloadBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    } else {
+      const bytes = new TextEncoder().encode(svg);
+      let binString = "";
+      bytes.forEach((b) => {
+        binString += String.fromCharCode(b);
+      });
+      const svgDataURL = "data:image/svg+xml;base64," + btoa(binString);
+
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load SVG for conversion"));
+        img.src = svgDataURL;
+      });
+
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+      if (!width || !height) {
+        const viewBoxMatch = svg.match(/viewBox=["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/);
+        if (viewBoxMatch) {
+          const wStr = viewBoxMatch[3];
+          const hStr = viewBoxMatch[4];
+          if (wStr !== undefined && hStr !== undefined) {
+            width = parseFloat(wStr);
+            height = parseFloat(hStr);
+          }
+        }
+      }
+      if (!width) width = 800;
+      if (!height) height = 600;
+
+      const canvas = activeDocument.body.createEl("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Could not get 2D canvas context for image conversion");
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const mimeType = format === "webp" ? "image/webp" : "image/png";
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), mimeType);
+      });
+
+      if (!blob) {
+        throw new Error(`Failed to convert canvas to ${format.toUpperCase()}`);
+      }
+      downloadBlob = blob;
+      canvas.remove();
+    }
+
+    const title = extractTitle(block.code || "");
+    const slug = title ? slugify(title) : "";
+    const filename = slug ? `${slug}.${format}` : `mermaid-${await getCodeHash(block.code || "")}.${format}`;
+
+    const url = URL.createObjectURL(downloadBlob);
+    const a = activeDocument.body.createEl("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    loadingNotice.hide();
+    new Notice(`Mermaid diagram downloaded successfully as ${format.toUpperCase()}!`);
+  } catch (error) {
+    loadingNotice.hide();
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    new Notice(`Download failed: ${errorMsg}`);
+    console.error("Mermaid download error:", error);
   }
 }
 
 /**
- * Performs conversion of the Mermaid block (active or commented) located at the cursor line.
- * 
- * @param app The Obsidian App instance.
- * @param editor The active editor instance.
- * @param plugin The active plugin instance.
+ * Converts a Mermaid code block to a URL-encoded image link in markdown.
+ * Supports Kroki and Mermaid.ink. Deletes the code block entirely.
  */
-export async function convertMermaidBlockAtCursor(app: App, editor: Editor, plugin: MermaidToImagePlugin): Promise<void> {
-  const cursor = editor.getCursor();
-  
-  // 1. Read all current lines of the editor to perform parsing
-  const lines: string[] = [];
-  const lineCount = editor.lineCount();
-  for (let i = 0; i < lineCount; i++) {
-    lines.push(editor.getLine(i));
-  }
-
-  // 2. Locate the Mermaid block at the cursor line
-  const block = findMermaidBlockAtLine(lines, cursor.line);
-  if (!block) {
-    new Notice("No active or commented Mermaid code block found under the cursor.");
-    return;
-  }
-
-  // 3. Verify there is an active file being edited
+export async function convertMermaidBlockToUrl(
+  app: App,
+  editor: Editor | null,
+  plugin: MermaidToImagePlugin,
+  targetLine?: number
+): Promise<void> {
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new Notice("No active note found. Cannot save image.");
+    new Notice("No active note found. Cannot convert diagram.");
     return;
   }
 
-  // 4. Show a persistent loading Notice (timeout 0)
-  const loadingNotice = new Notice("Converting Mermaid diagram to PNG via Kroki...", 0);
+  let line = targetLine;
+  if (line === undefined && editor) {
+    line = editor.getCursor().line;
+  }
+  if (line === undefined) {
+    new Notice("Could not determine diagram line number.");
+    return;
+  }
+
+  let lines: string[] = [];
+  if (editor) {
+    const lineCount = editor.lineCount();
+    for (let i = 0; i < lineCount; i++) {
+      lines.push(editor.getLine(i));
+    }
+  } else {
+    const fileContent = await app.vault.read(activeFile);
+    lines = fileContent.split("\n");
+  }
+
+  const block = findMermaidBlockAtLine(lines, line);
+  if (!block || block.type !== "active") {
+    new Notice("No active Mermaid code block found.");
+    return;
+  }
+
+  const format = plugin.settings.urlFormat;
+  const service = plugin.settings.service;
+  const loadingNotice = new Notice(`Generating diagram URL via ${service === "kroki" ? "Kroki" : "Mermaid.ink"}...`, 0);
 
   try {
-    // 5. Instantiate Kroki client and generate the image
-    const krokiClient = new KrokiClient({ serverUrl: plugin.settings.krokiInstanceUrl });
-    const arrayBuffer = await krokiClient.generateImage(block.code);
+    let url = "";
 
-    // 6. Resolve the target path for saving the PNG file
-    let targetFolder = "";
-    if (plugin.settings.storageLocation === 'custom-folder' && plugin.settings.customFolderPath) {
-      targetFolder = plugin.settings.customFolderPath.trim().replace(/\/$/, "");
+    if (service === "kroki") {
+      const server = (plugin.settings.krokiServerUrl || "https://kroki.io").replace(/\/$/, "");
+      const krokiFormat = format === "webp" ? "png" : format;
+      const base64 = await compressAndEncode(block.code || "");
+      url = `${server}/mermaid/${krokiFormat}/${base64}`;
     } else {
-      // Default: same folder as note
-      targetFolder = activeFile.parent ? activeFile.parent.path : "";
-      if (targetFolder === "/" || targetFolder === ".") {
-        targetFolder = "";
+      const server = (plugin.settings.mermaidInkServerUrl || "https://mermaid.ink").replace(/\/$/, "");
+      const state = {
+        code: block.code,
+        mermaid: { theme: "default" },
+      };
+      const base64 = await compressAndEncode(JSON.stringify(state));
+      
+      if (format === "svg") {
+        url = `${server}/svg/pako:${base64}`;
+      } else if (format === "webp") {
+        url = `${server}/img/pako:${base64}?type=webp`;
+      } else {
+        url = `${server}/img/pako:${base64}`;
       }
     }
 
-    const hash = await getCodeHash(block.code);
-    const filename = `mermaid-${hash}.png`;
-    const filePath = targetFolder ? `${targetFolder}/${filename}` : filename;
+    const title = extractTitle(block.code || "");
+    const altText = title || "Mermaid Diagram";
+    const replacementText = `![${altText}](${url})`;
 
-    // 7. If there is a previous associated image and it is different, remove it
-    if (block.existingImagePath && !block.isExistingImageRemote) {
-      const oldFile = app.vault.getAbstractFileByPath(block.existingImagePath);
-      if (oldFile instanceof TFile && oldFile.path !== filePath) {
-        try {
-          await app.fileManager.trashFile(oldFile);
-        } catch (e) {
-          console.warn("Mermaid Block to Image: Failed to delete previous image file:", e);
-        }
-      }
-    }
+    const endLine = block.endLine;
 
-    // 8. Create folder structure if needed and write PNG data
-    if (targetFolder) {
-      await ensureFolderExists(app, targetFolder);
-    }
-
-    const existingFile = app.vault.getAbstractFileByPath(filePath);
-    if (existingFile instanceof TFile) {
-      await app.vault.modifyBinary(existingFile, arrayBuffer);
+    if (editor) {
+      const endCh = editor.getLine(endLine).length;
+      editor.replaceRange(
+        replacementText,
+        { line: block.startLine, ch: 0 },
+        { line: endLine, ch: endCh }
+      );
     } else {
-      await app.vault.createBinary(filePath, arrayBuffer);
+      lines.splice(block.startLine, endLine - block.startLine + 1, replacementText);
+      await app.vault.modify(activeFile, lines.join("\n"));
     }
 
-    // 9. Replace the code block in the editor with the commented-out block and image link
-    const imageLink = `![[${filePath}]]`;
-    const replacementText = formatCommentedBlock(block.code, imageLink);
-
-    // If the existing image is a remote URL link, we do NOT overwrite it.
-    // Instead, we insert the new local image link directly before it.
-    const endLine = (block.imageLinkLine && !block.isExistingImageRemote) ? block.imageLinkLine : block.endLine;
-    const endCh = editor.getLine(endLine).length;
-
-    editor.replaceRange(
-      replacementText,
-      { line: block.startLine, ch: 0 },
-      { line: endLine, ch: endCh }
-    );
+    const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView) {
+      activeView.previewMode.rerender(true);
+    }
 
     loadingNotice.hide();
-    new Notice("Mermaid diagram successfully converted to PNG!");
-
+    new Notice(`Mermaid block converted to ${format.toUpperCase()} URL successfully!`);
   } catch (error) {
     loadingNotice.hide();
     const errorMsg = error instanceof Error ? error.message : String(error);
-    new Notice(`Conversion failed: ${errorMsg}`);
-    console.error("Mermaid Block to Image error:", error);
+    new Notice(`URL generation failed: ${errorMsg}`);
+    console.error("Mermaid URL generation error:", error);
+  }
+}
+
+/**
+ * Restores a diagram image URL back to an active code block.
+ * Decodes base64 data directly from the URL.
+ */
+export async function restoreUrlToCodeBlock(
+  app: App,
+  editor: Editor | null,
+  plugin: MermaidToImagePlugin,
+  targetLine?: number
+): Promise<void> {
+  const activeFile = app.workspace.getActiveFile();
+  if (!activeFile) {
+    new Notice("No active note found.");
+    return;
+  }
+
+  let line = targetLine;
+  if (line === undefined && editor) {
+    line = editor.getCursor().line;
+  }
+  if (line === undefined) {
+    new Notice("Could not determine diagram line number.");
+    return;
+  }
+
+  let lines: string[] = [];
+  if (editor) {
+    const lineCount = editor.lineCount();
+    for (let i = 0; i < lineCount; i++) {
+      lines.push(editor.getLine(i));
+    }
+  } else {
+    const fileContent = await app.vault.read(activeFile);
+    lines = fileContent.split("\n");
+  }
+
+  const lineText = lines[line];
+  if (!lineText) {
+    new Notice("No diagram image link found at cursor line.");
+    return;
+  }
+
+  // 1. Check if it is the old commented block format (backward compatibility)
+  const block = findMermaidBlockAtLine(lines, line);
+  if (block && block.type === "commented") {
+    try {
+      const imageLink = block.existingImageLink ? `%% ${block.existingImageLink} %%` : "";
+      const replacementLines = [
+        "```mermaid",
+        block.code,
+        "```",
+      ];
+      if (imageLink) {
+        replacementLines.push(imageLink);
+      }
+      const replacementText = replacementLines.join("\n");
+
+      const endLine = block.imageLinkLine ? block.imageLinkLine : block.endLine;
+
+      if (editor) {
+        const endCh = editor.getLine(endLine).length;
+        editor.replaceRange(
+          replacementText,
+          { line: block.startLine, ch: 0 },
+          { line: endLine, ch: endCh }
+        );
+      } else {
+        lines.splice(block.startLine, endLine - block.startLine + 1, replacementText);
+        await app.vault.modify(activeFile, lines.join("\n"));
+      }
+
+      const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+      if (activeView) {
+        activeView.previewMode.rerender(true);
+      }
+      new Notice("Diagram restored to active code block for editing!");
+      return;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      new Notice(`Failed to restore code block: ${errorMsg}`);
+      return;
+    }
+  }
+
+  // 2. Otherwise, decode the direct URL format from the target line
+  const parsed = parseImageLink(lineText);
+  if (parsed && parsed.isRemote) {
+    const loadingNotice = new Notice("Decompressing diagram URL...", 0);
+    try {
+      const decodedCode = await decodeDiagramFromUrl(parsed.path);
+      
+      const replacementText = [
+        "```mermaid",
+        decodedCode,
+        "```"
+      ].join("\n");
+
+      if (editor) {
+        const endCh = lineText.length;
+        editor.replaceRange(
+          replacementText,
+          { line, ch: 0 },
+          { line, ch: endCh }
+        );
+      } else {
+        lines.splice(line, 1, replacementText);
+        await app.vault.modify(activeFile, lines.join("\n"));
+      }
+
+      const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+      if (activeView) {
+        activeView.previewMode.rerender(true);
+      }
+
+      loadingNotice.hide();
+      new Notice("Diagram restored to active code block for editing!");
+    } catch (error) {
+      loadingNotice.hide();
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      new Notice(`Failed to restore code block: ${errorMsg}`);
+    }
+  } else {
+    new Notice("No commented block or remote diagram link found at cursor.");
   }
 }

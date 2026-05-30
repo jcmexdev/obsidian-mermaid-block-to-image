@@ -38,6 +38,18 @@ describe('Markdown Parser', () => {
       expect(match!.isRemote).toBe(true);
     });
 
+    it('should parse commented-out image links correctly', () => {
+      const matchWiki = parseImageLink('%% ![[mermaid-123.png]] %%');
+      expect(matchWiki).not.toBeNull();
+      expect(matchWiki!.path).toBe('mermaid-123.png');
+      expect(matchWiki!.isCommented).toBe(true);
+
+      const matchMd = parseImageLink('%% ![](https://cdn.example.com/diagram.png) %%');
+      expect(matchMd).not.toBeNull();
+      expect(matchMd!.path).toBe('https://cdn.example.com/diagram.png');
+      expect(matchMd!.isCommented).toBe(true);
+    });
+
     it('should return null for non-image links', () => {
       expect(parseImageLink('[Link](image.png)')).toBeNull();
       expect(parseImageLink('![[document.pdf]]')).not.toBeNull(); // PDF is also an embed, but let's see. In our case it parses it.
