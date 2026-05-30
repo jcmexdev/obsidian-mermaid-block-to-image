@@ -5,8 +5,11 @@ import {
   parseImageLink,
   formatCommentedBlock,
   findMermaidBlockAtLine,
-  getCodeHash
+  getCodeHash,
+  injectThemeDirective,
+  stripInjectedTheme
 } from '../markdown-parser';
+
 
 describe('Markdown Parser', () => {
   describe('parseImageLink', () => {
@@ -263,4 +266,53 @@ describe('Markdown Parser', () => {
       expect(hash1).not.toBe(hash2);
     });
   });
+
+  describe('theme directive helpers', () => {
+    describe('injectThemeDirective', () => {
+      it('should inject theme directive if none is present', () => {
+        const code = 'graph TD\n  A --> B';
+        const result = injectThemeDirective(code, 'dark');
+        expect(result).toBe("%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B");
+      });
+
+      it('should not inject if code already has %%{init: directive', () => {
+        const code = "%%{init: {'theme': 'forest'}}%%\ngraph TD\n  A --> B";
+        const result = injectThemeDirective(code, 'dark');
+        expect(result).toBe(code);
+      });
+
+      it('should not inject if code contains %%{init} directive', () => {
+        const code = "%%{init}%%\ngraph TD\n  A --> B";
+        const result = injectThemeDirective(code, 'dark');
+        expect(result).toBe(code);
+      });
+
+      it('should be case-insensitive and spacing tolerant when checking for existing init blocks', () => {
+        const code = "%%  {  init  : { ... } } %%\ngraph TD";
+        const result = injectThemeDirective(code, 'dark');
+        expect(result).toBe(code);
+      });
+    });
+
+    describe('stripInjectedTheme', () => {
+      it('should strip injected theme directive', () => {
+        const code = "%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B";
+        const result = stripInjectedTheme(code);
+        expect(result).toBe("graph TD\n  A --> B");
+      });
+
+      it('should strip theme directive with double quotes or different themes', () => {
+        const code = '%%{init: {"theme": "forest"}}%%\ngraph TD\n  A --> B';
+        const result = stripInjectedTheme(code);
+        expect(result).toBe("graph TD\n  A --> B");
+      });
+
+      it('should not strip standard custom user init blocks', () => {
+        const code = "%%{init: {'theme': 'custom-theme-name'}}%%\ngraph TD";
+        const result = stripInjectedTheme(code);
+        expect(result).toBe(code);
+      });
+    });
+  });
 });
+

@@ -1,6 +1,27 @@
 import { App, Editor, MarkdownView, Notice } from "obsidian";
 import MermaidToImagePlugin from "../main";
-import { extractTitle, findMermaidBlockAtLine, getCodeHash, parseImageLink, slugify } from "../utils/markdown-parser";
+import {
+  extractTitle,
+  findMermaidBlockAtLine,
+  getCodeHash,
+  parseImageLink,
+  slugify,
+  injectThemeDirective,
+  stripInjectedTheme
+} from "../utils/markdown-parser";
+
+/**
+ * Resolves the effective Mermaid theme.
+ * If set to 'match-obsidian', it dynamically queries the body class of the active window.
+ */
+function getEffectiveTheme(plugin: MermaidToImagePlugin): string {
+  const theme = plugin.settings.theme;
+  if (theme === "match-obsidian") {
+    const isDark = activeDocument?.body?.classList.contains("theme-dark") ?? false;
+    return isDark ? "dark" : "default";
+  }
+  return theme;
+}
 
 /**
  * Compresses a string using deflate and encodes it into URL-safe base64.
@@ -132,7 +153,9 @@ export async function downloadMermaidAsFile(
       throw new Error("Obsidian's global 'mermaid' instance is not available.");
     }
     const renderId = `mermaid-local-render-${Date.now()}`;
-    const { svg } = await mermaid.render(renderId, block.code || "");
+    const effectiveTheme = getEffectiveTheme(plugin);
+    const themedCode = injectThemeDirective(block.code || "", effectiveTheme);
+    const { svg } = await mermaid.render(renderId, themedCode);
     if (!svg) {
       throw new Error("Local Mermaid render returned empty output.");
     }
@@ -267,13 +290,16 @@ export async function convertMermaidBlockToUrl(
     if (service === "kroki") {
       const server = (plugin.settings.krokiServerUrl || "https://kroki.io").replace(/\/$/, "");
       const krokiFormat = format === "webp" ? "png" : format;
-      const base64 = await compressAndEncode(block.code || "");
+      const effectiveTheme = getEffectiveTheme(plugin);
+      const themedCode = injectThemeDirective(block.code || "", effectiveTheme);
+      const base64 = await compressAndEncode(themedCode);
       url = `${server}/mermaid/${krokiFormat}/${base64}`;
     } else {
       const server = (plugin.settings.mermaidInkServerUrl || "https://mermaid.ink").replace(/\/$/, "");
+      const effectiveTheme = getEffectiveTheme(plugin);
       const state = {
         code: block.code,
-        mermaid: { theme: "default" },
+        mermaid: { theme: effectiveTheme },
       };
       const base64 = await compressAndEncode(JSON.stringify(state));
       
@@ -366,9 +392,10 @@ export async function restoreUrlToCodeBlock(
   if (block && block.type === "commented") {
     try {
       const imageLink = block.existingImageLink ? `%% ${block.existingImageLink} %%` : "";
+      const cleanedCode = stripInjectedTheme(block.code);
       const replacementLines = [
         "```mermaid",
-        block.code,
+        cleanedCode,
         "```",
       ];
       if (imageLink) {
@@ -408,7 +435,8 @@ export async function restoreUrlToCodeBlock(
   if (parsed && parsed.isRemote) {
     const loadingNotice = new Notice("Decompressing diagram URL...", 0);
     try {
-      const decodedCode = await decodeDiagramFromUrl(parsed.path);
+      const decodedCodeRaw = await decodeDiagramFromUrl(parsed.path);
+      const decodedCode = stripInjectedTheme(decodedCodeRaw);
       
       const replacementText = [
         "```mermaid",

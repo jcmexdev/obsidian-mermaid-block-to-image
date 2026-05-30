@@ -420,3 +420,34 @@ export function slugify(text: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+
+/**
+ * Injects a theme initialization directive into the Mermaid code block
+ * if the block does not already contain an init block.
+ * 
+ * @param code The diagram source code.
+ * @param theme The theme name to inject.
+ * @returns The code with the theme directive injected if applicable.
+ */
+export function injectThemeDirective(code: string, theme: string): string {
+  if (/%%\s*\{\s*init\s*:/i.test(code) || code.includes("%%{init:") || code.includes("%%{init}")) {
+    return code;
+  }
+  return `%%{init: {'theme': '${theme}'}}%%\n${code}`;
+}
+
+/**
+ * Regex to detect and strip auto-injected theme directives on restore.
+ */
+export const INJECTED_THEME_REGEX = /^%%\{init:\s*\{\s*['"]theme['"]\s*:\s*['"](?:default|dark|forest|neutral|base)['"]\s*\}\}%%\r?\n/i;
+
+/**
+ * Strips the auto-injected theme directive if present.
+ * 
+ * @param code The diagram source code.
+ * @returns The diagram source code with the injected theme directive removed.
+ */
+export function stripInjectedTheme(code: string): string {
+  return code.replace(INJECTED_THEME_REGEX, "");
+}
+

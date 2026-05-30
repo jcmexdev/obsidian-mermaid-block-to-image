@@ -25,6 +25,10 @@ export interface MermaidSettings {
    * Custom server URL for Mermaid.ink.
    */
   mermaidInkServerUrl: string;
+  /**
+   * The theme to use for rendering diagrams.
+   */
+  theme: "match-obsidian" | "default" | "dark" | "forest" | "neutral" | "base";
 }
 
 /**
@@ -36,6 +40,7 @@ export const DEFAULT_SETTINGS: MermaidSettings = {
   service: "mermaid-ink",
   krokiServerUrl: "https://kroki.io",
   mermaidInkServerUrl: "https://mermaid.ink",
+  theme: "match-obsidian",
 };
 
 /**
@@ -81,7 +86,26 @@ export class MermaidSettingTab extends PluginSettingTab {
           })
       );
 
-    // 2. URL service configuration
+    // 2. Mermaid theme configuration
+    new Setting(containerEl)
+      .setName("Mermaid theme")
+      .setDesc("Select the theme to use for rendering diagrams. 'match Obsidian theme' dynamically selects dark or default based on your Obsidian environment.")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("match-obsidian", "Match Obsidian theme (dynamic)")
+          .addOption("default", "Default (light)")
+          .addOption("dark", "Dark")
+          .addOption("forest", "Forest (green)")
+          .addOption("neutral", "Neutral (gray)")
+          .addOption("base", "Base (simple)")
+          .setValue(this.plugin.settings.theme)
+          .onChange(async (value: "match-obsidian" | "default" | "dark" | "forest" | "neutral" | "base") => {
+            this.plugin.settings.theme = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    // 3. URL service configuration
     new Setting(containerEl)
       .setName("URL service provider")
       .setDesc("Online service used to render and generate image URL links.")
