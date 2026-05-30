@@ -1,7 +1,7 @@
 import { Editor, MarkdownView, Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, MermaidSettings, MermaidSettingTab } from "./settings";
 import { registerContextMenu } from "./ui/context-menu";
-import { convertMermaidBlockAtCursor } from "./ui/editor-handlers";
+import { convertMermaidBlockToLocalImage } from "./ui/editor-handlers";
 
 /**
  * Main plugin class for "Mermaid Block to Image" in Obsidian.
@@ -29,10 +29,10 @@ export default class MermaidToImagePlugin extends Plugin {
 
     // 4. Add command in the Obsidian command palette
     this.addCommand({
-      id: "convert-mermaid-to-png",
-      name: "Convert Mermaid block to PNG",
+      id: "convert-mermaid-to-local-image",
+      name: "Convert Mermaid block to local image",
       editorCallback: async (editor: Editor, _view: MarkdownView) => {
-        await convertMermaidBlockAtCursor(this.app, editor, this);
+        await convertMermaidBlockToLocalImage(this.app, editor, this);
       },
     });
   }

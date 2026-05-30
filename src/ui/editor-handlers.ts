@@ -1,7 +1,6 @@
-import { App, Editor, Notice, TFile } from "obsidian";
-import { findMermaidBlockAtLine, getCodeHash, formatCommentedBlock } from "../utils/markdown-parser";
-import { KrokiClient } from "../core/kroki-client";
+import { App, Editor, MarkdownView, Notice, TFile } from "obsidian";
 import MermaidToImagePlugin from "../main";
+import { extractTitle, findMermaidBlockAtLine, formatCommentedBlock, getCodeHash, slugify } from "../utils/markdown-parser";
 
 /**
  * Ensures that a nested folder path exists in the vault,
@@ -30,73 +29,133 @@ export async function ensureFolderExists(app: App, folderPath: string): Promise<
 }
 
 /**
- * Performs conversion of the Mermaid block (active or commented) located at the cursor line.
- * 
- * @param app The Obsidian App instance.
- * @param editor The active editor instance.
- * @param plugin The active plugin instance.
+ * Converts a Mermaid block to a local image saved in the vault.
+ * Generates SVG locally and offline via window.mermaid, and converts it locally
+ * to PNG/WebP via Canvas without canvas tainting issues by using Base64 Data URIs.
  */
-export async function convertMermaidBlockAtCursor(app: App, editor: Editor, plugin: MermaidToImagePlugin): Promise<void> {
+export async function convertMermaidBlockToLocalImage(app: App, editor: Editor, plugin: MermaidToImagePlugin): Promise<void> {
   const cursor = editor.getCursor();
   
-  // 1. Read all current lines of the editor to perform parsing
   const lines: string[] = [];
   const lineCount = editor.lineCount();
   for (let i = 0; i < lineCount; i++) {
     lines.push(editor.getLine(i));
   }
 
-  // 2. Locate the Mermaid block at the cursor line
   const block = findMermaidBlockAtLine(lines, cursor.line);
   if (!block) {
     new Notice("No active or commented Mermaid code block found under the cursor.");
     return;
   }
 
-  // 3. Verify there is an active file being edited
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
     new Notice("No active note found. Cannot save image.");
     return;
   }
 
-  // 4. Show a persistent loading Notice (timeout 0)
-  const loadingNotice = new Notice("Converting Mermaid diagram to PNG via Kroki...", 0);
+  const format = plugin.settings.localFormat; // 'svg' | 'png' | 'webp'
+  const loadingNotice = new Notice(`Rendering local ${format.toUpperCase()} diagram offline...`, 0);
 
   try {
-    // 5. Instantiate Kroki client and generate the image
-    const krokiClient = new KrokiClient({ serverUrl: plugin.settings.krokiInstanceUrl });
-    const arrayBuffer = await krokiClient.generateImage(block.code);
+    let arrayBuffer: ArrayBuffer;
 
-    // 6. Resolve the target path for saving the PNG file
+    // 1. Render SVG locally and offline using Obsidian's Mermaid engine
+    const mermaid = (window as Window & { mermaid?: { render: (id: string, text: string) => Promise<{ svg: string }> } }).mermaid;
+    if (!mermaid) {
+      throw new Error("Obsidian's global 'mermaid' instance is not available.");
+    }
+    const renderId = `mermaid-local-render-${Date.now()}`;
+    const { svg } = await mermaid.render(renderId, block.code);
+    if (!svg) {
+      throw new Error("Local Mermaid render returned empty output.");
+    }
+
+    if (format === "svg") {
+      arrayBuffer = new TextEncoder().encode(svg).buffer;
+    } else {
+      // 2. Convert SVG string to a Base64 data: URI to avoid canvas HTML5 security issues (tainted canvas)
+      const bytes = new TextEncoder().encode(svg);
+      let binString = "";
+      bytes.forEach((b) => {
+        binString += String.fromCharCode(b);
+      });
+      const svgDataURL = "data:image/svg+xml;base64," + btoa(binString);
+
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load local SVG for conversion"));
+        img.src = svgDataURL;
+      });
+
+      // Calculate width and height (with viewBox fallback)
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+      if (!width || !height) {
+        const viewBoxMatch = svg.match(/viewBox=["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/);
+        if (viewBoxMatch) {
+          const wStr = viewBoxMatch[3];
+          const hStr = viewBoxMatch[4];
+          if (wStr !== undefined && hStr !== undefined) {
+            width = parseFloat(wStr);
+            height = parseFloat(hStr);
+          }
+        }
+      }
+      if (!width) width = 800;
+      if (!height) height = 600;
+
+      const canvas = activeDocument.createEl("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Could not get 2D canvas context for image conversion");
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const mimeType = format === "webp" ? "image/webp" : "image/png";
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), mimeType);
+      });
+
+      if (!blob) {
+        throw new Error(`Failed to convert canvas to ${format.toUpperCase()}`);
+      }
+
+      arrayBuffer = await blob.arrayBuffer();
+    }
+
+    // Resolve target path for saving file
     let targetFolder = "";
     if (plugin.settings.storageLocation === 'custom-folder' && plugin.settings.customFolderPath) {
       targetFolder = plugin.settings.customFolderPath.trim().replace(/\/$/, "");
     } else {
-      // Default: same folder as note
       targetFolder = activeFile.parent ? activeFile.parent.path : "";
       if (targetFolder === "/" || targetFolder === ".") {
         targetFolder = "";
       }
     }
 
-    const hash = await getCodeHash(block.code);
-    const filename = `mermaid-${hash}.png`;
+    const title = extractTitle(block.code);
+    const slug = title ? slugify(title) : "";
+    const filename = slug ? `${slug}.${format}` : `mermaid-${await getCodeHash(block.code)}.${format}`;
     const filePath = targetFolder ? `${targetFolder}/${filename}` : filename;
 
-    // 7. If there is a previous associated image and it is different, remove it
+    // Delete old local file if path changed
     if (block.existingImagePath && !block.isExistingImageRemote) {
       const oldFile = app.vault.getAbstractFileByPath(block.existingImagePath);
       if (oldFile instanceof TFile && oldFile.path !== filePath) {
         try {
           await app.fileManager.trashFile(oldFile);
         } catch (e) {
-          console.warn("Mermaid Block to Image: Failed to delete previous image file:", e);
+          console.warn("Failed to delete previous image file:", e);
         }
       }
     }
 
-    // 8. Create folder structure if needed and write PNG data
     if (targetFolder) {
       await ensureFolderExists(app, targetFolder);
     }
@@ -108,12 +167,9 @@ export async function convertMermaidBlockAtCursor(app: App, editor: Editor, plug
       await app.vault.createBinary(filePath, arrayBuffer);
     }
 
-    // 9. Replace the code block in the editor with the commented-out block and image link
     const imageLink = `![[${filePath}]]`;
     const replacementText = formatCommentedBlock(block.code, imageLink);
 
-    // If the existing image is a remote URL link, we do NOT overwrite it.
-    // Instead, we insert the new local image link directly before it.
     const endLine = (block.imageLinkLine && !block.isExistingImageRemote) ? block.imageLinkLine : block.endLine;
     const endCh = editor.getLine(endLine).length;
 
@@ -123,13 +179,19 @@ export async function convertMermaidBlockAtCursor(app: App, editor: Editor, plug
       { line: endLine, ch: endCh }
     );
 
+    // Force a re-render of the preview mode to clear cached HTML and reload the new image
+    const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView) {
+      activeView.previewMode.rerender(true);
+    }
+
     loadingNotice.hide();
-    new Notice("Mermaid diagram successfully converted to PNG!");
+    new Notice(`Mermaid diagram successfully saved as local ${format.toUpperCase()}!`);
 
   } catch (error) {
     loadingNotice.hide();
     const errorMsg = error instanceof Error ? error.message : String(error);
-    new Notice(`Conversion failed: ${errorMsg}`);
-    console.error("Mermaid Block to Image error:", error);
+    new Notice(`Local image generation failed: ${errorMsg}`);
+    console.error("Local Mermaid to Image error:", error);
   }
 }

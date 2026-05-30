@@ -328,3 +328,85 @@ export async function getCodeHash(code: string): Promise<string> {
     .join("")
     .substring(0, 8);
 }
+
+/**
+ * Extracts a title from the Mermaid source code.
+ * Standardizes on YAML-like frontmatter `title: ...` or diagram-specific `title ...` definitions.
+ * 
+ * @param code The diagram source code.
+ * @returns The extracted title string, or null if none is found.
+ */
+export function extractTitle(code: string): string | null {
+  const trimmedCode = code.trim();
+  
+  // 1. Parse frontmatter title:
+  if (trimmedCode.startsWith("---")) {
+    const parts = trimmedCode.split("---");
+    if (parts.length >= 3) {
+      const frontmatter = parts[1];
+      if (frontmatter) {
+        const titleMatch = frontmatter.match(/^\s*title\s*:\s*(.*)$/m);
+        if (titleMatch && titleMatch[1]) {
+          let title = titleMatch[1].trim();
+          if (
+            (title.startsWith('"') && title.endsWith('"')) ||
+            (title.startsWith("'") && title.endsWith("'"))
+          ) {
+            title = title.substring(1, title.length - 1).trim();
+          }
+          if (title) return title;
+        }
+      }
+    }
+  }
+
+  // 2. Parse inline/diagram-specific titles:
+  const lines = code.split("\n");
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (trimmedLine.startsWith("%%")) continue;
+    
+    const titleMatch = trimmedLine.match(/^title\s+(.+)$/i);
+    if (titleMatch && titleMatch[1]) {
+      let title = titleMatch[1].trim();
+      if (
+        (title.startsWith('"') && title.endsWith('"')) ||
+        (title.startsWith("'") && title.endsWith("'"))
+      ) {
+        title = title.substring(1, title.length - 1).trim();
+      }
+      return title;
+    }
+
+    const pieMatch = trimmedLine.match(/^pie\s+title\s+(.+)$/i);
+    if (pieMatch && pieMatch[1]) {
+      let title = pieMatch[1].trim();
+      if (
+        (title.startsWith('"') && title.endsWith('"')) ||
+        (title.startsWith("'") && title.endsWith("'"))
+      ) {
+        title = title.substring(1, title.length - 1).trim();
+      }
+      return title;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Converts a text title into a url-safe slug.
+ * Removes accents, converts to lowercase, replaces non-alphanumeric characters with hyphens,
+ * and trims leading/trailing hyphens.
+ * 
+ * @param text The input title string.
+ * @returns A slugified string.
+ */
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
