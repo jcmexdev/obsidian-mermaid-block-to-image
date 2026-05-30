@@ -1,6 +1,6 @@
 import { Editor, Menu } from "obsidian";
 import { findMermaidBlockAtLine } from "../utils/markdown-parser";
-import { convertMermaidBlockAtCursor } from "./editor-handlers";
+import { convertMermaidBlockToLocalImage } from "./editor-handlers";
 import MermaidToImagePlugin from "../main";
 
 /**
@@ -23,14 +23,18 @@ export function registerContextMenu(plugin: MermaidToImagePlugin) {
 
       // Check if there is a Mermaid block under the cursor
       const block = findMermaidBlockAtLine(lines, cursor.line);
+      const format = plugin.settings.localFormat.toUpperCase();
+      
       if (block) {
         menu.addItem((item) => {
-          const title = block.type === "commented" ? "Regenerate Mermaid diagram" : "Convert Mermaid to PNG";
+          const title = block.type === "commented"
+            ? `Regenerate local ${format} image`
+            : `Convert to local ${format} image`;
           item
             .setTitle(title)
             .setIcon("image")
             .onClick(async () => {
-              await convertMermaidBlockAtCursor(plugin.app, editor, plugin);
+              await convertMermaidBlockToLocalImage(plugin.app, editor, plugin);
             });
         });
       }
