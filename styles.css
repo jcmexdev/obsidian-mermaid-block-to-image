@@ -1,120 +1,120 @@
 /* Styles for Mermaid Block to Image interactive buttons */
 
 /* Ensure the containers are relative so absolute buttons are positioned correctly */
-.cm-preview-code-block.cm-lang-mermaid,
-.block-language-mermaid,
-.mermaid,
-.internal-embed,
-.mermaid-image-container {
-  position: relative !important;
+.workspace-leaf .cm-preview-code-block.cm-lang-mermaid,
+.workspace-leaf .block-language-mermaid,
+.workspace-leaf .mermaid,
+.workspace-leaf .internal-embed,
+.workspace-leaf .mermaid-image-container {
+  position: relative;
 }
 
 /* Base styles for active Mermaid block buttons (to look identical to native Obsidian buttons) */
-.mermaid-action-btn-convert,
-.mermaid-action-btn-download-active {
-  position: absolute !important;
-  background-color: var(--background-primary) !important;
-  border: 1px solid var(--background-modifier-border) !important;
-  border-radius: var(--radius-s) !important;
-  color: var(--text-muted) !important;
-  cursor: pointer !important;
-  height: 24px !important;
-  width: 24px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.2s ease-in-out !important;
-  z-index: 10 !important;
-  opacity: 0 !important;
+.workspace-leaf .edit-block-button.mermaid-action-btn-convert,
+.workspace-leaf .edit-block-button.mermaid-action-btn-download-active {
+  position: absolute;
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  cursor: pointer;
+  height: 24px;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.2s ease-in-out;
+  z-index: 10;
+  opacity: 0;
 }
 
 /* Hover styles for active block buttons */
-.mermaid-action-btn-convert:hover,
-.mermaid-action-btn-download-active:hover {
-  background-color: var(--background-modifier-hover) !important;
-  color: var(--text-normal) !important;
+.workspace-leaf .edit-block-button.mermaid-action-btn-convert:hover,
+.workspace-leaf .edit-block-button.mermaid-action-btn-download-active:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
 }
 
 /* Reveal active block buttons on hover of parent container */
-.cm-embed-block:hover .mermaid-action-btn-convert,
-.cm-embed-block:hover .mermaid-action-btn-download-active,
-.block-language-mermaid:hover .mermaid-action-btn-convert,
-.block-language-mermaid:hover .mermaid-action-btn-download-active,
-.mermaid:hover .mermaid-action-btn-convert,
-.mermaid:hover .mermaid-action-btn-download-active {
-  opacity: 1 !important;
+.workspace-leaf .cm-embed-block:hover .edit-block-button.mermaid-action-btn-convert,
+.workspace-leaf .cm-embed-block:hover .edit-block-button.mermaid-action-btn-download-active,
+.workspace-leaf .block-language-mermaid:hover .edit-block-button.mermaid-action-btn-convert,
+.workspace-leaf .block-language-mermaid:hover .edit-block-button.mermaid-action-btn-download-active,
+.workspace-leaf .mermaid:hover .edit-block-button.mermaid-action-btn-convert,
+.workspace-leaf .mermaid:hover .edit-block-button.mermaid-action-btn-download-active {
+  opacity: 1;
 }
 
 /* Shift the convert button to the left of Obsidian's native code block edit button */
-.cm-embed-block .mermaid-action-btn-convert.edit-block-button,
-.block-language-mermaid .mermaid-action-btn-convert.edit-block-button,
-.mermaid .mermaid-action-btn-convert.edit-block-button {
-  inset-inline-end: calc(var(--size-2-2) + 40px) !important;
-  top: 8px !important;
-  left: auto !important;
-  bottom: auto !important;
+.workspace-leaf .cm-embed-block .edit-block-button.mermaid-action-btn-convert,
+.workspace-leaf .block-language-mermaid .edit-block-button.mermaid-action-btn-convert,
+.workspace-leaf .mermaid .edit-block-button.mermaid-action-btn-convert {
+  inset-inline-end: calc(var(--size-2-2) + 40px);
+  top: 8px;
+  left: auto;
+  bottom: auto;
 }
 
 /* Shift the download button on active block to the left of convert button */
-.cm-embed-block .mermaid-action-btn-download-active.edit-block-button,
-.block-language-mermaid .mermaid-action-btn-download-active.edit-block-button,
-.mermaid .mermaid-action-btn-download-active.edit-block-button {
-  inset-inline-end: calc(var(--size-2-2) + 80px) !important;
-  top: 8px !important;
-  left: auto !important;
-  bottom: auto !important;
+.workspace-leaf .cm-embed-block .edit-block-button.mermaid-action-btn-download-active,
+.workspace-leaf .block-language-mermaid .edit-block-button.mermaid-action-btn-download-active,
+.workspace-leaf .mermaid .edit-block-button.mermaid-action-btn-download-active {
+  inset-inline-end: calc(var(--size-2-2) + 80px);
+  top: 8px;
+  left: auto;
+  bottom: auto;
 }
 
 /* Base styles for our custom action buttons on image embeds */
-.mermaid-action-btn-restore.edit-block-button,
-.mermaid-action-btn-download.edit-block-button {
-  position: absolute !important;
-  top: 8px !important;
-  left: auto !important;
-  bottom: auto !important;
-  display: flex !important;
+.workspace-leaf .edit-block-button.mermaid-action-btn-restore,
+.workspace-leaf .edit-block-button.mermaid-action-btn-download {
+  position: absolute;
+  top: 8px;
+  left: auto;
+  bottom: auto;
+  display: flex;
   opacity: 0;
   transition: opacity 0.2s ease-in-out;
   z-index: 10;
 }
 
 /* Position restore button */
-.cm-embed-block .internal-embed .mermaid-action-btn-restore.edit-block-button,
-.cm-embed-block .image-embed .mermaid-action-btn-restore.edit-block-button {
-  right: calc(var(--size-2-2) + 40px) !important;
+.workspace-leaf .cm-embed-block .internal-embed .edit-block-button.mermaid-action-btn-restore,
+.workspace-leaf .cm-embed-block .image-embed .edit-block-button.mermaid-action-btn-restore {
+  right: calc(var(--size-2-2) + 40px);
 }
-.markdown-rendered .internal-embed .mermaid-action-btn-restore.edit-block-button,
-.markdown-rendered .image-embed .mermaid-action-btn-restore.edit-block-button,
-.mermaid-image-wrapper .mermaid-action-btn-restore.edit-block-button {
-  right: 8px !important;
+.workspace-leaf .markdown-rendered .internal-embed .edit-block-button.mermaid-action-btn-restore,
+.workspace-leaf .markdown-rendered .image-embed .edit-block-button.mermaid-action-btn-restore,
+.workspace-leaf .mermaid-image-wrapper .edit-block-button.mermaid-action-btn-restore {
+  right: 8px;
 }
 
 /* Position download button (shifted further left to be side-by-side with restore) */
-.cm-embed-block .internal-embed .mermaid-action-btn-download.edit-block-button,
-.cm-embed-block .image-embed .mermaid-action-btn-download.edit-block-button {
-  right: calc(var(--size-2-2) + 80px) !important;
+.workspace-leaf .cm-embed-block .internal-embed .edit-block-button.mermaid-action-btn-download,
+.workspace-leaf .cm-embed-block .image-embed .edit-block-button.mermaid-action-btn-download {
+  right: calc(var(--size-2-2) + 80px);
 }
-.markdown-rendered .internal-embed .mermaid-action-btn-download.edit-block-button,
-.markdown-rendered .image-embed .mermaid-action-btn-download.edit-block-button,
-.mermaid-image-wrapper .mermaid-action-btn-download.edit-block-button {
-  right: 48px !important;
+.workspace-leaf .markdown-rendered .internal-embed .edit-block-button.mermaid-action-btn-download,
+.workspace-leaf .markdown-rendered .image-embed .edit-block-button.mermaid-action-btn-download,
+.workspace-leaf .mermaid-image-wrapper .edit-block-button.mermaid-action-btn-download {
+  right: 48px;
 }
 
 /* Custom inline-block image wrapper styles */
-.mermaid-image-wrapper {
-  position: relative !important;
-  display: inline-block !important;
+.workspace-leaf .mermaid-image-wrapper {
+  position: relative;
+  display: inline-block;
   max-width: 100%;
 }
 
 /* Reveal buttons when hovering over the image embed or any processed container */
-[data-mermaid-image-processed="true"]:hover .mermaid-action-btn-restore.edit-block-button,
-[data-mermaid-image-processed="true"]:hover .mermaid-action-btn-download.edit-block-button,
-.internal-embed:hover .mermaid-action-btn-restore.edit-block-button,
-.internal-embed:hover .mermaid-action-btn-download.edit-block-button,
-.image-embed:hover .mermaid-action-btn-restore.edit-block-button,
-.image-embed:hover .mermaid-action-btn-download.edit-block-button {
-  opacity: 1 !important;
+.workspace-leaf [data-mermaid-image-processed="true"]:hover .edit-block-button.mermaid-action-btn-restore,
+.workspace-leaf [data-mermaid-image-processed="true"]:hover .edit-block-button.mermaid-action-btn-download,
+.workspace-leaf .internal-embed:hover .edit-block-button.mermaid-action-btn-restore,
+.workspace-leaf .internal-embed:hover .edit-block-button.mermaid-action-btn-download,
+.workspace-leaf .image-embed:hover .edit-block-button.mermaid-action-btn-restore,
+.workspace-leaf .image-embed:hover .edit-block-button.mermaid-action-btn-download {
+  opacity: 1;
 }
 
 /* Ensure consistent button icon sizes */
