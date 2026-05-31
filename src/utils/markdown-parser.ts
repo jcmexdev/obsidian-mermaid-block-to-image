@@ -420,7 +420,6 @@ export function slugify(text: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
-
 /**
  * Checks if the diagram source code already contains a custom theme configuration.
  * Specifically checks for:
@@ -528,4 +527,3 @@ export const INJECTED_THEME_REGEX = /(?:^|(\r?\n))%%\{init:\s*\{\s*['"]theme['"]
 export function stripInjectedTheme(code: string): string {
   return code.replace(INJECTED_THEME_REGEX, "$1");
 }
-
