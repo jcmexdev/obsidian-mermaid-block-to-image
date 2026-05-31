@@ -1,10 +1,12 @@
 # Mermaid Block to Image - Obsidian Plugin
 
-![mermaid_banner.png](https://i.ibb.co/gLb2rKVG/mermaid-banner-png.png)
+
+![mermaid-block-to-image-cover.png](https://i.ibb.co/6fH53Zz/mermaid-block-to-image-cover-png.png)
 
 Convert Mermaid code blocks to static image URLs (SVG, PNG, or WebP) using the free **Kroki** or **Mermaid.ink** APIs, and restore them back to editable code blocks instantly. This speeds up note loading, keeps your vault clutter-free, and ensures consistent rendering across devices.
 
-> ⚠️ This plugin operates in editing views (**Source Mode** and **Live Preview**) and Reading view.
+
+![mermaid-block-to-image-demo.gif](https://i.ibb.co/Fbt4KGDR/mermaid-block-to-image-demo-gif.gif)
 
 ---
 
@@ -33,11 +35,19 @@ graph TD
 ### 2. Convert to URL
 Click the **Convert to URL** hover button or right-click and select **Convert to URL**. The block is replaced by a clean markdown image link containing the compressed diagram code:
 ```markdown
-![Mermaid Diagram](https://mermaid.ink/svg/pako:eNplkMsKwjAQRX8lzKqF...)
+![Mermaid Diagram](https://kroki.io/mermaid/png/eJxTVa3OzMsssVKoVi_JSM1NVbdSUE9JTUsszSlRr61VVeVKL0osyFAIceFSUFBQcFTQ1bVTcAIAxCQPOg)
 ```
 
 ### 3. Restore to Code Block
 When you want to edit the diagram, click the **Restore URL to Mermaid** button (indicated by the history icon ↩️) or right-click the image and select **Restore URL to Mermaid**. The diagram code is decoded directly from the URL and restored back to a clean code block!
+
+> [!TIP]
+> **Use Diagram Titles for Custom Names & Alt Text**
+> It is highly recommended to add a title to your Mermaid diagrams (either using YAML frontmatter `title: ...` or inline `title ...` syntax).
+> 
+> When a title is detected:
+> 1. **Alt Text**: The generated markdown link will use the title (e.g. `![My Diagram Title](https://...)` instead of `![Mermaid Diagram]`).
+> 2. **File Downloads**: The downloaded file will be named using the slugified title (e.g. `my-diagram-title.png` instead of a generic hash like `mermaid-f7d9433.png`).
 
 ---
 
@@ -51,12 +61,16 @@ When you want to edit the diagram, click the **Restore URL to Mermaid** button (
   - **Restore URL to Mermaid** (history/revert icon): Restores the image link back to a Mermaid code block.
   - **Download image** (download icon): Downloads the diagram to your computer.
 
+![hover-action-buttons.png](https://i.ibb.co/BxNHmn2/hover-action-buttons-png.png)
+
 ### In Source Mode & Context Menu
 - Right-click an active Mermaid code block to select:
   - **Download image**
   - **Convert to URL**
 - Right-click a converted image link (`![alt](url)`) to select:
   - **Restore URL to Mermaid**
+
+![context-menu-options.png](https://i.ibb.co/wZKjXt6k/context-menu-options-png.png)
 
 ### Command Palette
 Open the Command Palette (`Ctrl/Cmd + P`) and run:
