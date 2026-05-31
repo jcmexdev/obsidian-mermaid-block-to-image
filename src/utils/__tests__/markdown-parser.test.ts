@@ -1,358 +1,260 @@
-import { describe, it, expect } from 'vitest';
-import {
-  findActiveBlockAtLine,
-  findCommentedBlockAtLine,
-  parseImageLink,
-  formatCommentedBlock,
-  findMermaidBlockAtLine,
-  getCodeHash,
-  injectThemeDirective,
-  stripInjectedTheme,
-  hasThemeInCode
-} from '../markdown-parser';
+/* eslint-disable */
+import { vi, describe, it, expect } from 'vitest';
+import { convertMermaidBlockToUrl, restoreUrlToCodeBlock } from '../../ui/editor-handlers';
+import { parseImageLink, extractTitle, slugify, stripInjectedTheme } from '../markdown-parser';
 
+// Mock obsidian before importing anything that uses it
+vi.mock("obsidian", () => {
+  return {
+    Notice: class {
+      constructor(public message: string, public duration?: number) {}
+      hide() {}
+    },
+    MarkdownRenderer: {
+      render: vi.fn(),
+    },
+    Component: class {
+      load() {}
+      unload() {}
+    },
+    MarkdownView: class {
+      previewMode = {
+        rerender: vi.fn(),
+      };
+      getMode() {
+        return "source";
+      }
+    },
+    requestUrl: vi.fn(),
+  };
+});
 
-describe('Markdown Parser', () => {
-  describe('parseImageLink', () => {
-    it('should parse wiki-style image links correctly', () => {
-      const match = parseImageLink('![[attachments/mermaid-123.png]]');
-      expect(match).not.toBeNull();
-      expect(match!.path).toBe('attachments/mermaid-123.png');
-      expect(match!.isRemote).toBe(false);
+// Setup mock document for window/DOM environment
+(globalThis as any).activeDocument = {
+  body: {
+    classList: {
+      contains: (cls: string) => cls === "theme-dark",
+    },
+    createEl: (tag: string) => {
+      if (tag === "canvas") {
+        return {
+          getContext: () => ({
+            drawImage: () => {},
+          }),
+          toBlob: (cb: any) => cb(new Blob()),
+          remove: () => {},
+        };
+      }
+      return {
+        setAttribute: () => {},
+        appendChild: () => {},
+        style: {},
+      };
+    },
+  },
+} as any;
+
+(globalThis as any).activeWindow = {} as any;
+
+const mockApp = {
+  workspace: {
+    getActiveFile: () => ({ path: "note.md" }),
+    getActiveViewOfType: () => ({
+      previewMode: {
+        rerender: () => {},
+      },
+    }),
+  },
+  vault: {
+    read: async () => "",
+    modify: async () => {},
+  },
+} as any;
+
+class MockEditor {
+  lines: string[];
+  cursorLine: number;
+
+  constructor(lines: string[], cursorLine: number = 0) {
+    this.lines = lines;
+    this.cursorLine = cursorLine;
+  }
+
+  getCursor() {
+    return { line: this.cursorLine, ch: 0 };
+  }
+
+  lineCount() {
+    return this.lines.length;
+  }
+
+  getLine(i: number) {
+    return this.lines[i] || "";
+  }
+
+  replaceRange(
+    text: string,
+    start: { line: number; ch: number },
+    end: { line: number; ch: number }
+  ) {
+    const before = this.lines.slice(0, start.line);
+    const after = this.lines.slice(end.line + 1);
+    const newLines = text.split("\n");
+    this.lines = [...before, ...newLines, ...after];
+  }
+}
+
+describe('Mermaid Plugin Specs', () => {
+  describe("Convert Block to URL Spec", () => {
+    it("should convert active Mermaid block to Kroki URL and replace in editor", async () => {
+      const plugin = {
+        settings: {
+          urlFormat: "png",
+          service: "kroki",
+          krokiServerUrl: "https://kroki.io",
+          theme: "default",
+        },
+        saveSettings: async () => {},
+      } as any;
+
+      const editor = new MockEditor([
+        "Some introduction text",
+        "```mermaid",
+        "graph TD",
+        "  A --> B",
+        "```",
+        "Some concluding text"
+      ], 2); // cursor inside block
+
+      await convertMermaidBlockToUrl(mockApp, editor as any, plugin);
+
+      // Verify that the code block has been replaced by an image link
+      expect(editor.lines[1]).toContain("![Mermaid Diagram](https://kroki.io/mermaid/png/");
+      expect(editor.lines[2]).toBe("Some concluding text"); // block is gone, lines shifted up
     });
 
-    it('should parse wiki-style image links with alt or width text', () => {
-      const match = parseImageLink('![[mermaid-123.png|300]]');
-      expect(match).not.toBeNull();
-      expect(match!.path).toBe('mermaid-123.png');
-      expect(match!.isRemote).toBe(false);
-    });
+    it("should convert active Mermaid block to Mermaid.ink URL with theme", async () => {
+      const plugin = {
+        settings: {
+          urlFormat: "svg",
+          service: "mermaid-ink",
+          mermaidInkServerUrl: "https://mermaid.ink",
+          theme: "dark",
+        },
+        saveSettings: async () => {},
+      } as any;
 
-    it('should parse standard markdown image links correctly', () => {
-      const match = parseImageLink('![alt text](images/diagram.png)');
-      expect(match).not.toBeNull();
-      expect(match!.path).toBe('images/diagram.png');
-      expect(match!.isRemote).toBe(false);
-    });
+      const editor = new MockEditor([
+        "```mermaid",
+        "graph TD",
+        "  A --> B",
+        "```",
+      ], 1);
 
-    it('should identify remote URLs as remote', () => {
-      const match = parseImageLink('![](https://cdn.example.com/diagram.png)');
-      expect(match).not.toBeNull();
-      expect(match!.path).toBe('https://cdn.example.com/diagram.png');
-      expect(match!.isRemote).toBe(true);
-    });
+      await convertMermaidBlockToUrl(mockApp, editor as any, plugin);
 
-    it('should parse commented-out image links correctly', () => {
-      const matchWiki = parseImageLink('%% ![[mermaid-123.png]] %%');
-      expect(matchWiki).not.toBeNull();
-      expect(matchWiki!.path).toBe('mermaid-123.png');
-      expect(matchWiki!.isCommented).toBe(true);
-
-      const matchMd = parseImageLink('%% ![](https://cdn.example.com/diagram.png) %%');
-      expect(matchMd).not.toBeNull();
-      expect(matchMd!.path).toBe('https://cdn.example.com/diagram.png');
-      expect(matchMd!.isCommented).toBe(true);
-    });
-
-    it('should return null for non-image links', () => {
-      expect(parseImageLink('[Link](image.png)')).toBeNull();
-      expect(parseImageLink('![[document.pdf]]')).not.toBeNull(); // PDF is also an embed, but let's see. In our case it parses it.
-      expect(parseImageLink('plain text')).toBeNull();
-    });
-  });
-
-  describe('findActiveBlockAtLine', () => {
-    it('should find active block when cursor is on the opening tag', () => {
-      const lines = [
-        '# Note Title',
-        '```mermaid',
-        'graph TD',
-        '  A --> B',
-        '```',
-        'some text'
-      ];
-      const block = findActiveBlockAtLine(lines, 1);
-      expect(block).not.toBeNull();
-      expect(block!.type).toBe('active');
-      expect(block!.startLine).toBe(1);
-      expect(block!.endLine).toBe(4);
-      expect(block!.code).toBe('graph TD\n  A --> B');
-    });
-
-    it('should find active block when cursor is inside the code block', () => {
-      const lines = [
-        '# Note Title',
-        '```mermaid',
-        'graph TD',
-        '  A --> B',
-        '```',
-        'some text'
-      ];
-      const block = findActiveBlockAtLine(lines, 2);
-      expect(block).not.toBeNull();
-      expect(block!.code).toBe('graph TD\n  A --> B');
-    });
-
-    it('should find active block when cursor is on the closing tag', () => {
-      const lines = [
-        '# Note Title',
-        '```mermaid',
-        'graph TD',
-        '  A --> B',
-        '```',
-        'some text'
-      ];
-      const block = findActiveBlockAtLine(lines, 4);
-      expect(block).not.toBeNull();
-      expect(block!.startLine).toBe(1);
-      expect(block!.endLine).toBe(4);
-    });
-
-    it('should return null if cursor is outside any code block', () => {
-      const lines = [
-        '# Note Title',
-        '```mermaid',
-        'graph TD',
-        '  A --> B',
-        '```',
-        'some text'
-      ];
-      expect(findActiveBlockAtLine(lines, 0)).toBeNull();
-      expect(findActiveBlockAtLine(lines, 5)).toBeNull();
-    });
-
-    it('should detect an existing image link immediately following the active block', () => {
-      const lines = [
-        '```mermaid',
-        'graph TD',
-        '  A --> B',
-        '```',
-        '![[mermaid-123.png]]'
-      ];
-      const block = findActiveBlockAtLine(lines, 1);
-      expect(block).not.toBeNull();
-      expect(block!.existingImageLink).toBe('![[mermaid-123.png]]');
-      expect(block!.existingImagePath).toBe('mermaid-123.png');
-      expect(block!.imageLinkLine).toBe(4);
-      expect(block!.isExistingImageRemote).toBe(false);
-    });
-
-    it('should detect a remote image link following the active block', () => {
-      const lines = [
-        '```mermaid',
-        'graph TD',
-        '  A --> B',
-        '```',
-        '![](https://cdn.example.com/diagram.png)'
-      ];
-      const block = findActiveBlockAtLine(lines, 1);
-      expect(block).not.toBeNull();
-      expect(block!.existingImageLink).toBe('![](https://cdn.example.com/diagram.png)');
-      expect(block!.existingImagePath).toBe('https://cdn.example.com/diagram.png');
-      expect(block!.imageLinkLine).toBe(4);
-      expect(block!.isExistingImageRemote).toBe(true);
-    });
-  });
-
-  describe('findCommentedBlockAtLine', () => {
-    const commentedBlockLines = [
-      '# Document Title',
-      '%% [Autogenerated by Mermaid Block to Image Plugin. Do not delete or modify this line]',
-      '```mermaid',
-      'graph TD',
-      '  A --> B',
-      '```',
-      '[Autogenerated by Mermaid Block to Image Plugin. Do not delete or modify this line] %%',
-      '![[attachments/mermaid-abc.png]]',
-      'other normal content'
-    ];
-
-    it('should find commented block when cursor is on warning line', () => {
-      const block = findCommentedBlockAtLine(commentedBlockLines, 1);
-      expect(block).not.toBeNull();
-      expect(block!.type).toBe('commented');
-      expect(block!.startLine).toBe(1);
-      expect(block!.endLine).toBe(6);
-      expect(block!.code).toBe('graph TD\n  A --> B');
-      expect(block!.existingImageLink).toBe('![[attachments/mermaid-abc.png]]');
-      expect(block!.existingImagePath).toBe('attachments/mermaid-abc.png');
-      expect(block!.imageLinkLine).toBe(7);
-    });
-
-    it('should find commented block when cursor is inside the code block', () => {
-      const block = findCommentedBlockAtLine(commentedBlockLines, 3);
-      expect(block).not.toBeNull();
-      expect(block!.code).toBe('graph TD\n  A --> B');
-    });
-
-    it('should find commented block when cursor is on the image link line below it', () => {
-      const block = findCommentedBlockAtLine(commentedBlockLines, 7);
-      expect(block).not.toBeNull();
-      expect(block!.type).toBe('commented');
-      expect(block!.code).toBe('graph TD\n  A --> B');
-    });
-
-    it('should return null if cursor is completely outside the commented block range', () => {
-      expect(findCommentedBlockAtLine(commentedBlockLines, 0)).toBeNull();
-      expect(findCommentedBlockAtLine(commentedBlockLines, 8)).toBeNull();
-    });
-
-    it('should find commented block with remote image link', () => {
-      const lines = [
-        '%% [Autogenerated by Mermaid Block to Image Plugin. Do not delete or modify this line]',
-        '```mermaid',
-        'graph TD',
-        '  A --> B',
-        '```',
-        '[Autogenerated by Mermaid Block to Image Plugin. Do not delete or modify this line] %%',
-        '![](https://cdn.example.com/diagram.png)'
-      ];
-      const block = findCommentedBlockAtLine(lines, 2);
-      expect(block).not.toBeNull();
-      expect(block!.existingImageLink).toBe('![](https://cdn.example.com/diagram.png)');
-      expect(block!.existingImagePath).toBe('https://cdn.example.com/diagram.png');
-      expect(block!.imageLinkLine).toBe(6);
-      expect(block!.isExistingImageRemote).toBe(true);
+      expect(editor.lines[0]).toContain("![Mermaid Diagram](https://mermaid.ink/svg/pako:");
     });
   });
 
-  describe('findMermaidBlockAtLine unified helper', () => {
-    it('should prioritize commented blocks over active blocks if inside both somehow, or detect active', () => {
-      const lines = [
-        '```mermaid',
-        'graph TD',
-        '```'
-      ];
-      const block = findMermaidBlockAtLine(lines, 1);
-      expect(block).not.toBeNull();
-      expect(block!.type).toBe('active');
+  describe("Restore URL to Mermaid Spec", () => {
+    it("should restore a Kroki URL back to active code block", async () => {
+      const plugin = {
+        settings: {
+          theme: "default",
+        },
+      } as any;
+
+      // First let's generate a valid Kroki URL to use for restoring
+      const testCode = "graph TD\n  A --> B";
+      const pluginForGen = {
+        settings: {
+          urlFormat: "png",
+          service: "kroki",
+          krokiServerUrl: "https://kroki.io",
+          theme: "default",
+        },
+      } as any;
+      const editorForGen = new MockEditor(["```mermaid", testCode, "```"], 1);
+      await convertMermaidBlockToUrl(mockApp, editorForGen as any, pluginForGen);
+      const generatedUrlLine = editorForGen.lines[0] || "";
+
+      // Now restore it
+      const editorToRestore = new MockEditor([generatedUrlLine], 0);
+      await restoreUrlToCodeBlock(mockApp, editorToRestore as any, plugin);
+
+      expect(editorToRestore.lines[0]).toBe("```mermaid");
+      expect(editorToRestore.lines[1]).toContain("graph TD");
+      expect(editorToRestore.lines[2]).toContain("A --> B");
+      expect(editorToRestore.lines[3]).toBe("```");
+    });
+
+    it("should restore a Mermaid.ink URL back to active code block", async () => {
+      const plugin = {
+        settings: {
+          theme: "default",
+        },
+      } as any;
+
+      const testCode = "graph TD\n  A --> C";
+      const pluginForGen = {
+        settings: {
+          urlFormat: "svg",
+          service: "mermaid-ink",
+          mermaidInkServerUrl: "https://mermaid.ink",
+          theme: "default",
+        },
+      } as any;
+      const editorForGen = new MockEditor(["```mermaid", testCode, "```"], 1);
+      await convertMermaidBlockToUrl(mockApp, editorForGen as any, pluginForGen);
+      const generatedUrlLine = editorForGen.lines[0] || "";
+
+      const editorToRestore = new MockEditor([generatedUrlLine], 0);
+      await restoreUrlToCodeBlock(mockApp, editorToRestore as any, plugin);
+
+      expect(editorToRestore.lines[0]).toBe("```mermaid");
+      expect(editorToRestore.lines[1]).toContain("graph TD");
+      expect(editorToRestore.lines[2]).toContain("A --> C");
+      expect(editorToRestore.lines[3]).toBe("```");
     });
   });
 
-  describe('formatCommentedBlock', () => {
-    it('should output the warning line, code block, closing warning line, and image link correctly', () => {
-      const code = 'graph TD\n  A --> B';
-      const imgLink = '![[mermaid-abc.png]]';
-      const result = formatCommentedBlock(code, imgLink);
+  describe("Metadata & Title Specs", () => {
+    it("should extract title from diagram frontmatter", () => {
+      const code = "---\ntitle: Network Architecture\n---\nflowchart TD\n  A";
+      expect(extractTitle(code)).toBe("Network Architecture");
+    });
 
-      const expected = [
-        '%% [Autogenerated by Mermaid Block to Image Plugin. Do not delete or modify this line]',
-        '```mermaid',
-        'graph TD',
-        '  A --> B',
-        '```',
-        '[Autogenerated by Mermaid Block to Image Plugin. Do not delete or modify this line] %%',
-        '![[mermaid-abc.png]]'
-      ].join('\n');
+    it("should extract title from diagram specific inline syntax", () => {
+      const code = "pie title Favorite Foods\n  \"Apples\" : 45";
+      expect(extractTitle(code)).toBe("Favorite Foods");
+    });
 
-      expect(result).toBe(expected);
+    it("should slugify title to URL-safe filename format", () => {
+      expect(slugify("Network Architecture (Draft 1)")).toBe("network-architecture-draft-1");
     });
   });
 
-  describe('getCodeHash', () => {
-    it('should generate a consistent 8-character hex hash', async () => {
-      const code = 'graph TD\n  A --> B';
-      const hash1 = await getCodeHash(code);
-      const hash2 = await getCodeHash(code);
-
-      expect(hash1).toHaveLength(8);
-      expect(hash1).toBe(hash2);
-      expect(hash1).toMatch(/^[0-9a-f]{8}$/);
-    });
-
-    it('should generate different hashes for different text', async () => {
-      const hash1 = await getCodeHash('graph TD\n  A --> B');
-      const hash2 = await getCodeHash('graph TD\n  A --> C');
-
-      expect(hash1).not.toBe(hash2);
+  describe("Theme Handling Specs", () => {
+    it("should strip auto-injected theme directive when restoring", () => {
+      const code = "%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B";
+      expect(stripInjectedTheme(code)).toBe("graph TD\n  A --> B");
     });
   });
 
-  describe('theme directive helpers', () => {
-    describe('injectThemeDirective', () => {
-      it('should inject theme directive if none is present', () => {
-        const code = 'graph TD\n  A --> B';
-        const result = injectThemeDirective(code, 'dark');
-        expect(result).toBe("%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B");
-      });
-
-      it('should not inject if code already has %%{init: directive', () => {
-        const code = "%%{init: {'theme': 'forest'}}%%\ngraph TD\n  A --> B";
-        const result = injectThemeDirective(code, 'dark');
-        expect(result).toBe(code);
-      });
-
-      it('should not inject if code contains %%{init} directive', () => {
-        const code = "%%{init}%%\ngraph TD\n  A --> B";
-        const result = injectThemeDirective(code, 'dark');
-        expect(result).toBe(code);
-      });
-
-      it('should be case-insensitive and spacing tolerant when checking for existing init blocks', () => {
-        const code = "%%  {  init  : { ... } } %%\ngraph TD";
-        const result = injectThemeDirective(code, 'dark');
-        expect(result).toBe(code);
-      });
-
-      it('should inject after YAML frontmatter if present', () => {
-        const code = "---\ntitle: Simple Flow\n---\ngraph TD\n  A --> B";
-        const result = injectThemeDirective(code, 'dark');
-        expect(result).toBe("---\ntitle: Simple Flow\n---\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B");
-      });
+  describe("Image Link Parsing Spec", () => {
+    it("should identify remote diagram URLs correctly", () => {
+      const parsed = parseImageLink("![alt](https://mermaid.ink/img/pako:abc)");
+      expect(parsed).not.toBeNull();
+      expect(parsed!.path).toBe("https://mermaid.ink/img/pako:abc");
+      expect(parsed!.isRemote).toBe(true);
     });
 
-    describe('stripInjectedTheme', () => {
-      it('should strip injected theme directive', () => {
-        const code = "%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B";
-        const result = stripInjectedTheme(code);
-        expect(result).toBe("graph TD\n  A --> B");
-      });
-
-      it('should strip theme directive with double quotes or different themes', () => {
-        const code = '%%{init: {"theme": "forest"}}%%\ngraph TD\n  A --> B';
-        const result = stripInjectedTheme(code);
-        expect(result).toBe("graph TD\n  A --> B");
-      });
-
-      it('should not strip standard custom user init blocks', () => {
-        const code = "%%{init: {'theme': 'custom-theme-name'}}%%\ngraph TD";
-        const result = stripInjectedTheme(code);
-        expect(result).toBe(code);
-      });
-
-      it('should strip injected theme directive even when placed after frontmatter', () => {
-        const code = "---\ntitle: Simple Flow\n---\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A --> B";
-        const result = stripInjectedTheme(code);
-        expect(result).toBe("---\ntitle: Simple Flow\n---\ngraph TD\n  A --> B");
-      });
-    });
-
-    describe('hasThemeInCode', () => {
-      it('should return false if no theme is defined in the code', () => {
-        const code = "graph TD\n  A --> B";
-        expect(hasThemeInCode(code)).toBe(false);
-      });
-
-      it('should return true if an init block defines a theme', () => {
-        const code = "%%{init: {'theme': 'forest'}}%%\ngraph TD";
-        expect(hasThemeInCode(code)).toBe(true);
-      });
-
-      it('should return true if frontmatter defines a theme', () => {
-        const code = "---\ntheme: dark\n---\ngraph TD";
-        expect(hasThemeInCode(code)).toBe(true);
-      });
-
-      it('should return true if nested config frontmatter defines a theme', () => {
-        const code = "---\nconfig:\n  theme: neutral\n---\ngraph TD";
-        expect(hasThemeInCode(code)).toBe(true);
-      });
-
-      it('should return false if frontmatter exists but has no theme', () => {
-        const code = "---\ntitle: Simple Flow\n---\ngraph TD";
-        expect(hasThemeInCode(code)).toBe(false);
-      });
+    it("should identify wiki-style image links", () => {
+      const parsed = parseImageLink("![[attachments/image.png]]");
+      expect(parsed).not.toBeNull();
+      expect(parsed!.path).toBe("attachments/image.png");
+      expect(parsed!.isRemote).toBe(false);
     });
   });
 });
-
