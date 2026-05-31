@@ -1,8 +1,137 @@
-/*
+/* Styles for Mermaid Block to Image interactive buttons */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* Ensure the containers are relative so absolute buttons are positioned correctly */
+.cm-preview-code-block.cm-lang-mermaid,
+.block-language-mermaid,
+.mermaid,
+.internal-embed,
+.mermaid-image-container {
+  position: relative !important;
+}
 
-If your plugin does not need CSS, delete this file.
+/* Base styles for active Mermaid block buttons (to look identical to native Obsidian buttons) */
+.mermaid-action-btn-convert,
+.mermaid-action-btn-download-active {
+  position: absolute !important;
+  background-color: var(--background-primary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: var(--radius-s) !important;
+  color: var(--text-muted) !important;
+  cursor: pointer !important;
+  height: 24px !important;
+  width: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.2s ease-in-out !important;
+  z-index: 10 !important;
+  opacity: 0 !important;
+}
 
-*/
+/* Hover styles for active block buttons */
+.mermaid-action-btn-convert:hover,
+.mermaid-action-btn-download-active:hover {
+  background-color: var(--background-modifier-hover) !important;
+  color: var(--text-normal) !important;
+}
+
+/* Reveal active block buttons on hover of parent container */
+.cm-embed-block:hover .mermaid-action-btn-convert,
+.cm-embed-block:hover .mermaid-action-btn-download-active,
+.block-language-mermaid:hover .mermaid-action-btn-convert,
+.block-language-mermaid:hover .mermaid-action-btn-download-active,
+.mermaid:hover .mermaid-action-btn-convert,
+.mermaid:hover .mermaid-action-btn-download-active {
+  opacity: 1 !important;
+}
+
+/* Shift the convert button to the left of Obsidian's native code block edit button */
+.cm-embed-block .mermaid-action-btn-convert.edit-block-button,
+.block-language-mermaid .mermaid-action-btn-convert.edit-block-button,
+.mermaid .mermaid-action-btn-convert.edit-block-button {
+  inset-inline-end: calc(var(--size-2-2) + 40px) !important;
+  top: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+}
+
+/* Shift the download button on active block to the left of convert button */
+.cm-embed-block .mermaid-action-btn-download-active.edit-block-button,
+.block-language-mermaid .mermaid-action-btn-download-active.edit-block-button,
+.mermaid .mermaid-action-btn-download-active.edit-block-button {
+  inset-inline-end: calc(var(--size-2-2) + 80px) !important;
+  top: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+}
+
+/* Base styles for our custom action buttons on image embeds */
+.mermaid-action-btn-restore.edit-block-button,
+.mermaid-action-btn-download.edit-block-button {
+  position: absolute !important;
+  top: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+  display: flex !important;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  z-index: 10;
+}
+
+/* Position restore button */
+.cm-embed-block .internal-embed .mermaid-action-btn-restore.edit-block-button,
+.cm-embed-block .image-embed .mermaid-action-btn-restore.edit-block-button {
+  right: calc(var(--size-2-2) + 40px) !important;
+}
+.markdown-rendered .internal-embed .mermaid-action-btn-restore.edit-block-button,
+.markdown-rendered .image-embed .mermaid-action-btn-restore.edit-block-button,
+.mermaid-image-wrapper .mermaid-action-btn-restore.edit-block-button {
+  right: 8px !important;
+}
+
+/* Position download button (shifted further left to be side-by-side with restore) */
+.cm-embed-block .internal-embed .mermaid-action-btn-download.edit-block-button,
+.cm-embed-block .image-embed .mermaid-action-btn-download.edit-block-button {
+  right: calc(var(--size-2-2) + 80px) !important;
+}
+.markdown-rendered .internal-embed .mermaid-action-btn-download.edit-block-button,
+.markdown-rendered .image-embed .mermaid-action-btn-download.edit-block-button,
+.mermaid-image-wrapper .mermaid-action-btn-download.edit-block-button {
+  right: 48px !important;
+}
+
+/* Custom inline-block image wrapper styles */
+.mermaid-image-wrapper {
+  position: relative !important;
+  display: inline-block !important;
+  max-width: 100%;
+}
+
+/* Reveal buttons when hovering over the image embed or any processed container */
+[data-mermaid-image-processed="true"]:hover .mermaid-action-btn-restore.edit-block-button,
+[data-mermaid-image-processed="true"]:hover .mermaid-action-btn-download.edit-block-button,
+.internal-embed:hover .mermaid-action-btn-restore.edit-block-button,
+.internal-embed:hover .mermaid-action-btn-download.edit-block-button,
+.image-embed:hover .mermaid-action-btn-restore.edit-block-button,
+.image-embed:hover .mermaid-action-btn-download.edit-block-button {
+  opacity: 1 !important;
+}
+
+/* Ensure consistent button icon sizes */
+.mermaid-action-btn-convert svg,
+.mermaid-action-btn-download-active svg,
+.mermaid-action-btn-restore svg,
+.mermaid-action-btn-download svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+/* Settings tab formats guide */
+.mermaid-settings-guide {
+  white-space: pre-line;
+  margin-bottom: 1.5em;
+  padding: 10px;
+  background-color: var(--background-secondary);
+  border-radius: 4px;
+}
