@@ -3,7 +3,7 @@
 	"name": "Mermaid Block to Image",
 	"version": "1.0.1",
 	"minAppVersion": "1.6.6",
-	"description": "Converts Mermaid code blocks to static PNG images using the free Kroki API.",
+	"description": "Converts Mermaid code blocks to static image URLs (SVG, PNG, WebP) using Kroki or Mermaid.ink, and restores them instantly.",
 	"author": "jcmexdev",
 	"authorUrl": "https://github.com/jcmexdev",
 	"isDesktopOnly": false
