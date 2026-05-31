@@ -4,7 +4,7 @@ import { convertMermaidBlockToUrl, restoreUrlToCodeBlock, downloadMermaidAsFile 
 import { extractTitle, slugify } from "../utils/markdown-parser";
 
 const MERMAID_SELECTOR = ".block-language-mermaid, .mermaid";
-const IMAGE_SELECTOR = ".internal-embed, .image-embed";
+const IMAGE_SELECTOR = ".internal-embed, .image-embed, img";
 const PROCESSED_ATTR = "data-mermaid-image-processed";
  
 /**
@@ -28,8 +28,8 @@ export function processMermaidButtons(container: HTMLElement, plugin: MermaidToI
     if (blocks.length > 0) found = true;
   }
 
-  // 2. Process commented block image embeds
-  const isImage = container.classList?.contains("internal-embed") || container.classList?.contains("image-embed");
+  // 2. Process commented block image embeds or remote images
+  const isImage = container.classList?.contains("internal-embed") || container.classList?.contains("image-embed") || container.tagName === "IMG";
   if (isImage) {
     attachRestoreButton(container, plugin, sourcePath, targetLine);
     found = true;
@@ -53,7 +53,7 @@ function attachConvertButton(container: HTMLElement, plugin: MermaidToImagePlugi
 
   if (!container.querySelector(".mermaid-action-btn-convert")) {
     const btn = container.createDiv({ cls: "edit-block-button mermaid-action-btn-convert" });
-    btn.setAttribute("aria-label", "Convert to image URL");
+    btn.setAttribute("aria-label", "Convert to URL");
     setIcon(btn, "image");
 
     plugin.registerDomEvent(btn, "click", async (e) => {
@@ -69,7 +69,7 @@ function attachConvertButton(container: HTMLElement, plugin: MermaidToImagePlugi
 
   if (!container.querySelector(".mermaid-action-btn-download-active")) {
     const downloadBtn = container.createDiv({ cls: "edit-block-button mermaid-action-btn-download-active" });
-    downloadBtn.setAttribute("aria-label", "Download Mermaid as image");
+    downloadBtn.setAttribute("aria-label", "Download image");
     setIcon(downloadBtn, "download");
 
     plugin.registerDomEvent(downloadBtn, "click", async (e) => {
@@ -85,11 +85,41 @@ function attachConvertButton(container: HTMLElement, plugin: MermaidToImagePlugi
 }
 
 /**
- * Attaches a "Restore code" and "Download" buttons to a generated Mermaid diagram image.
+ * Attaches a "Restore URL to Mermaid" and "Download image" buttons to a generated Mermaid diagram image.
  */
 function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin, sourcePath: string, targetLine?: number): void {
-  if (embedDiv.hasAttribute(PROCESSED_ATTR)) return;
-  embedDiv.setAttribute(PROCESSED_ATTR, "true");
+  let targetContainer = embedDiv;
+  if (embedDiv.tagName === "IMG") {
+    const parent = embedDiv.parentElement;
+    if (!parent) return;
+
+    // Check if the parent is a designated image embed container
+    const isParentWrapper = parent.classList.contains("image-embed") || 
+                           parent.classList.contains("internal-embed");
+                           
+    if (isParentWrapper) {
+      targetContainer = parent;
+    } else {
+      // Wrap the img tag in a span to keep buttons absolute position relative to the image bounds
+      const doc = embedDiv.ownerDocument || activeDocument;
+      let wrapper = parent.querySelector(`.mermaid-image-wrapper`) as HTMLElement;
+      if (!wrapper || !wrapper.contains(embedDiv)) {
+        wrapper = doc.createElement("span");
+        wrapper.classList.add("mermaid-image-wrapper");
+        parent.insertBefore(wrapper, embedDiv);
+        wrapper.appendChild(embedDiv);
+      }
+      targetContainer = wrapper;
+    }
+  }
+
+  if (targetContainer.hasAttribute(PROCESSED_ATTR)) return;
+  targetContainer.setAttribute(PROCESSED_ATTR, "true");
+
+  // Dynamically ensure relative positioning so buttons align correctly
+  if (getComputedStyle(targetContainer).position === "static") {
+    targetContainer.classList.add("mermaid-image-container");
+  }
 
   const src = embedDiv.getAttribute("src") || embedDiv.querySelector("img")?.getAttribute("src");
   if (!src) return;
@@ -156,10 +186,10 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
     if (!isMermaidImage || lineToRestore === undefined) return;
 
     // 1. Create Restore Button
-    if (!embedDiv.querySelector(".mermaid-action-btn-restore")) {
-      const btn = embedDiv.createDiv({ cls: "edit-block-button mermaid-action-btn-restore" });
-      btn.setAttribute("aria-label", "Restore to Mermaid block");
-      setIcon(btn, "code-2");
+    if (!targetContainer.querySelector(".mermaid-action-btn-restore")) {
+      const btn = targetContainer.createDiv({ cls: "edit-block-button mermaid-action-btn-restore" });
+      btn.setAttribute("aria-label", "Restore URL to Mermaid");
+      setIcon(btn, "history");
 
       plugin.registerDomEvent(btn, "click", async (e) => {
         e.stopPropagation();
@@ -185,8 +215,8 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
     }
 
     // 2. Create Download Button
-    if (!embedDiv.querySelector(".mermaid-action-btn-download")) {
-      const downloadBtn = embedDiv.createDiv({ cls: "edit-block-button mermaid-action-btn-download" });
+    if (!targetContainer.querySelector(".mermaid-action-btn-download")) {
+      const downloadBtn = targetContainer.createDiv({ cls: "edit-block-button mermaid-action-btn-download" });
       downloadBtn.setAttribute("aria-label", "Download image");
       setIcon(downloadBtn, "download");
 

@@ -4,7 +4,8 @@
 .cm-preview-code-block.cm-lang-mermaid,
 .block-language-mermaid,
 .mermaid,
-.internal-embed {
+.internal-embed,
+.mermaid-image-container {
   position: relative !important;
 }
 
@@ -83,7 +84,8 @@
   right: calc(var(--size-2-2) + 40px) !important;
 }
 .markdown-rendered .internal-embed .mermaid-action-btn-restore.edit-block-button,
-.markdown-rendered .image-embed .mermaid-action-btn-restore.edit-block-button {
+.markdown-rendered .image-embed .mermaid-action-btn-restore.edit-block-button,
+.mermaid-image-wrapper .mermaid-action-btn-restore.edit-block-button {
   right: 8px !important;
 }
 
@@ -93,11 +95,21 @@
   right: calc(var(--size-2-2) + 80px) !important;
 }
 .markdown-rendered .internal-embed .mermaid-action-btn-download.edit-block-button,
-.markdown-rendered .image-embed .mermaid-action-btn-download.edit-block-button {
+.markdown-rendered .image-embed .mermaid-action-btn-download.edit-block-button,
+.mermaid-image-wrapper .mermaid-action-btn-download.edit-block-button {
   right: 48px !important;
 }
 
-/* Reveal buttons when hovering over the image embed */
+/* Custom inline-block image wrapper styles */
+.mermaid-image-wrapper {
+  position: relative !important;
+  display: inline-block !important;
+  max-width: 100%;
+}
+
+/* Reveal buttons when hovering over the image embed or any processed container */
+[data-mermaid-image-processed="true"]:hover .mermaid-action-btn-restore.edit-block-button,
+[data-mermaid-image-processed="true"]:hover .mermaid-action-btn-download.edit-block-button,
 .internal-embed:hover .mermaid-action-btn-restore.edit-block-button,
 .internal-embed:hover .mermaid-action-btn-download.edit-block-button,
 .image-embed:hover .mermaid-action-btn-restore.edit-block-button,
