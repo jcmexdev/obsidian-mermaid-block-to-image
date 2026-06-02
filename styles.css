@@ -139,6 +139,59 @@ body .workspace-leaf .markdown-preview-view .edit-block-button.mermaid-action-bt
   display: block;
 }
 
+/* Visual drag resize handle on the right edge of processed image wrappers/embeds */
+.workspace-leaf .mermaid-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 9;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+
+/* Highlight the drag handle subtly on hover */
+.workspace-leaf [data-mermaid-image-processed="true"]:hover .mermaid-resize-handle,
+.workspace-leaf .internal-embed:hover .mermaid-resize-handle,
+.workspace-leaf .image-embed:hover .mermaid-resize-handle {
+  background-color: color-mix(in srgb, var(--interactive-accent) 15%, transparent);
+}
+
+/* Make it fully prominent when hovering the handle itself or dragging active */
+.workspace-leaf .mermaid-resize-handle:hover,
+body.mermaid-resizing-active .mermaid-resize-handle {
+  background-color: var(--interactive-accent) !important;
+  box-shadow: 0 0 4px var(--interactive-accent);
+}
+
+/* Global utility cursor and user-select override when actively resizing */
+body.mermaid-resizing-active,
+body.mermaid-resizing-active * {
+  cursor: ew-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Visual drag resize tooltip overlay showing pixel width dynamically */
+.workspace-leaf .mermaid-resize-tooltip {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--background-modifier-accent);
+  color: var(--text-on-accent, #ffffff);
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+  box-shadow: var(--shadow-s);
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+}
+
 /* Settings tab formats guide */
 .mermaid-settings-guide {
   white-space: pre-line;

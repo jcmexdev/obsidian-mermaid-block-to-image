@@ -2,9 +2,12 @@ import { App, Component, Editor, MarkdownRenderer, MarkdownView, Notice } from "
 import MermaidToImagePlugin from "../main";
 import {
   extractTitle,
+  extractWidth,
+  updateWidthInCode,
   findMermaidBlockAtLine,
   getCodeHash,
   parseImageLink,
+  matchImageSource,
   slugify,
   injectThemeDirective,
   stripInjectedTheme,
@@ -324,6 +327,12 @@ export async function convertMermaidBlockToUrl(
     const hasTheme = hasThemeInCode(block.code || "");
     const effectiveTheme = getEffectiveTheme(plugin);
 
+    // Compute width options: prioritize diagram-specific frontmatter/comment or fallback to default 500
+    const widthFromCode = extractWidth(block.code || "");
+    const configWidth = widthFromCode || "500";
+    const isPercent = configWidth.endsWith("%");
+    const apiWidth = isPercent ? 1200 : (parseInt(configWidth) || 500);
+
     if (service === "kroki") {
       const server = (plugin.settings.krokiServerUrl || "https://kroki.io").replace(/\/$/, "");
       const krokiFormat = format === "webp" ? "png" : format;
@@ -346,7 +355,7 @@ export async function convertMermaidBlockToUrl(
       const base64 = await compressAndEncode(JSON.stringify(state));
       
       if (format === "svg") {
-        url = `${server}/svg/pako:${base64}`;
+        url = `${server}/svg/pako:${base64}?width=${apiWidth}`;
       } else if (format === "webp") {
         url = `${server}/img/pako:${base64}?type=webp`;
       } else {
@@ -355,7 +364,7 @@ export async function convertMermaidBlockToUrl(
     }
 
     const title = extractTitle(block.code || "");
-    const altText = title || "Mermaid Diagram";
+    const altText = title ? `${title}|${configWidth}` : `Mermaid Diagram|${configWidth}`;
     const replacementText = `![${altText}](${url})`;
 
     const endLine = block.endLine;
@@ -478,8 +487,19 @@ export async function restoreUrlToCodeBlock(
     const loadingNotice = new Notice("Decompressing diagram URL...", 0);
     try {
       const decodedCodeRaw = await decodeDiagramFromUrl(parsed.path);
-      const decodedCode = stripInjectedTheme(decodedCodeRaw);
+      let decodedCode = stripInjectedTheme(decodedCodeRaw);
       
+      // Extract width from alt text if present
+      const mdMatch = lineText.match(/^!\[([^\]]*)\]/);
+      if (mdMatch) {
+        const altPart = mdMatch[1] || "";
+        const altParts = altPart.split("|");
+        const widthPart = altParts[1]?.trim();
+        if (widthPart && widthPart !== "500") {
+          decodedCode = updateWidthInCode(decodedCode, widthPart);
+        }
+      }
+
       const replacementText = [
         "```mermaid",
         decodedCode,
@@ -512,5 +532,94 @@ export async function restoreUrlToCodeBlock(
     }
   } else {
     new Notice("No commented block or remote diagram link found at cursor.");
+  }
+}
+
+/**
+ * Updates a converted diagram's width to the specified value.
+ * Decodes the original Mermaid diagram code, updates its width property,
+ * re-encodes/compresses the code back into the remote URL, replaces the link,
+ * and re-renders the view.
+ */
+export async function updateDiagramSize(
+  app: App,
+  editor: Editor | null,
+  plugin: MermaidToImagePlugin,
+  targetLine: number | undefined,
+  nextWidth: string
+): Promise<void> {
+  const activeFile = app.workspace.getActiveFile();
+  if (!activeFile) {
+    new Notice("No active note found.");
+    return;
+  }
+
+  let line = targetLine;
+  if (line === undefined && editor) {
+    line = editor.getCursor().line;
+  }
+  if (line === undefined) {
+    new Notice("Could not determine diagram line number.");
+    return;
+  }
+
+  let lines: string[] = [];
+  if (editor) {
+    const lineCount = editor.lineCount();
+    for (let i = 0; i < lineCount; i++) {
+      lines.push(editor.getLine(i));
+    }
+  } else {
+    const fileContent = await app.vault.read(activeFile);
+    lines = fileContent.split("\n");
+  }
+
+  const lineText = lines[line];
+  if (!lineText) {
+    new Notice("No diagram image link found at cursor line.");
+    return;
+  }
+
+  const parsed = parseImageLink(lineText);
+  if (!parsed || !parsed.isRemote) {
+    new Notice("No remote diagram link found at cursor line.");
+    return;
+  }
+
+  // Parse current width from the link.
+  // Match standard Markdown image link: ![alt|width](url)
+  const mdMatch = lineText.match(/^(!\[)([^\]]*)(\]\()([^)]+)(\))$/);
+  if (!mdMatch) {
+    new Notice("Failed to parse image link format.");
+    return;
+  }
+
+  const prefix = mdMatch[1]; // "!["
+  const altPart = mdMatch[2] || ""; // "Title|width"
+  const mid = mdMatch[3]; // "]("
+  const urlPart = mdMatch[4] || ""; // "https://..."
+  const suffix = mdMatch[5]; // ")"
+
+  const altParts = altPart.split("|");
+  const title = altParts[0] || "";
+
+  try {
+    const newAltPart = title ? `${title}|${nextWidth}` : `Mermaid Diagram|${nextWidth}`;
+    const replacementText = `${prefix}${newAltPart}${mid}${urlPart}${suffix}`;
+
+    if (editor) {
+      editor.replaceRange(
+        replacementText,
+        { line, ch: 0 },
+        { line, ch: lineText.length }
+      );
+    } else {
+      lines.splice(line, 1, replacementText);
+      await app.vault.modify(activeFile, lines.join("\n"));
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    new Notice(`Failed to save diagram size: ${errorMsg}`);
+    console.error("Saving diagram size failed:", error);
   }
 }

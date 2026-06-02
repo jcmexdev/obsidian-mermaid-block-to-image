@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { vi, describe, it, expect } from 'vitest';
 import { convertMermaidBlockToUrl, restoreUrlToCodeBlock } from '../../ui/editor-handlers';
-import { parseImageLink, extractTitle, slugify, stripInjectedTheme } from '../markdown-parser';
+import { parseImageLink, extractTitle, extractWidth, updateWidthInCode, slugify, stripInjectedTheme } from '../markdown-parser';
 
 // Mock obsidian before importing anything that uses it
 vi.mock("obsidian", () => {
@@ -113,6 +113,7 @@ describe('Mermaid Plugin Specs', () => {
           service: "kroki",
           krokiServerUrl: "https://kroki.io",
           theme: "default",
+          urlWidth: "800",
         },
         saveSettings: async () => {},
       } as any;
@@ -129,7 +130,7 @@ describe('Mermaid Plugin Specs', () => {
       await convertMermaidBlockToUrl(mockApp, editor as any, plugin);
 
       // Verify that the code block has been replaced by an image link
-      expect(editor.lines[1]).toContain("![Mermaid Diagram](https://kroki.io/mermaid/png/");
+      expect(editor.lines[1]).toContain("![Mermaid Diagram|500](https://kroki.io/mermaid/png/");
       expect(editor.lines[2]).toBe("Some concluding text"); // block is gone, lines shifted up
     });
 
@@ -140,6 +141,7 @@ describe('Mermaid Plugin Specs', () => {
           service: "mermaid-ink",
           mermaidInkServerUrl: "https://mermaid.ink",
           theme: "dark",
+          urlWidth: "800",
         },
         saveSettings: async () => {},
       } as any;
@@ -153,7 +155,8 @@ describe('Mermaid Plugin Specs', () => {
 
       await convertMermaidBlockToUrl(mockApp, editor as any, plugin);
 
-      expect(editor.lines[0]).toContain("![Mermaid Diagram](https://mermaid.ink/svg/pako:");
+      expect(editor.lines[0]).toContain("![Mermaid Diagram|500](https://mermaid.ink/svg/pako:");
+      expect(editor.lines[0]).toContain("?width=500");
     });
   });
 
@@ -217,6 +220,36 @@ describe('Mermaid Plugin Specs', () => {
       expect(editorToRestore.lines[2]).toContain("A --> C");
       expect(editorToRestore.lines[3]).toBe("```");
     });
+
+    it("should restore a Mermaid.ink URL back to active code block and inject custom width", async () => {
+      const plugin = {
+        settings: {
+          theme: "default",
+        },
+      } as any;
+
+      const testCode = "%% width: 600 %%\ngraph TD\n  A --> D";
+      const pluginForGen = {
+        settings: {
+          urlFormat: "svg",
+          service: "mermaid-ink",
+          mermaidInkServerUrl: "https://mermaid.ink",
+          theme: "default",
+        },
+      } as any;
+      const editorForGen = new MockEditor(["```mermaid", testCode, "```"], 1);
+      await convertMermaidBlockToUrl(mockApp, editorForGen as any, pluginForGen);
+      const generatedUrlLine = editorForGen.lines[0] || "";
+
+      const editorToRestore = new MockEditor([generatedUrlLine], 0);
+      await restoreUrlToCodeBlock(mockApp, editorToRestore as any, plugin);
+
+      expect(editorToRestore.lines[0]).toBe("```mermaid");
+      expect(editorToRestore.lines[1]).toContain("%% width: 600 %%");
+      expect(editorToRestore.lines[2]).toContain("graph TD");
+      expect(editorToRestore.lines[3]).toContain("A --> D");
+      expect(editorToRestore.lines[4]).toBe("```");
+    });
   });
 
   describe("Metadata & Title Specs", () => {
@@ -232,6 +265,37 @@ describe('Mermaid Plugin Specs', () => {
 
     it("should slugify title to URL-safe filename format", () => {
       expect(slugify("Network Architecture (Draft 1)")).toBe("network-architecture-draft-1");
+    });
+
+    it("should extract width from diagram frontmatter", () => {
+      const code = "---\ntitle: Network Architecture\nwidth: 450\n---\nflowchart TD\n  A";
+      expect(extractWidth(code)).toBe("450");
+    });
+
+    it("should extract width from diagram comment", () => {
+      const code = "%% width: 300 %%\ngraph TD\n  A --> B";
+      expect(extractWidth(code)).toBe("300");
+    });
+
+    it("should update width in diagram frontmatter", () => {
+      const code = "---\ntitle: Test\nwidth: 450\n---\nflowchart TD\n  A";
+      const updated = updateWidthInCode(code, "600");
+      expect(extractWidth(updated)).toBe("600");
+      expect(updated).toContain("width: 600");
+    });
+
+    it("should update width in diagram comments", () => {
+      const code = "%% width: 300 %%\ngraph TD\n  A --> B";
+      const updated = updateWidthInCode(code, "800");
+      expect(extractWidth(updated)).toBe("800");
+      expect(updated).toContain("%% width: 800 %%");
+    });
+
+    it("should inject width comment if not present in simple code", () => {
+      const code = "graph TD\n  A --> B";
+      const updated = updateWidthInCode(code, "400");
+      expect(extractWidth(updated)).toBe("400");
+      expect(updated).toBe("%% width: 400 %%\ngraph TD\n  A --> B");
     });
   });
 

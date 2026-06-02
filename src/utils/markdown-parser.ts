@@ -405,6 +405,100 @@ export function extractTitle(code: string): string | null {
 }
 
 /**
+ * Extracts a width from the Mermaid source code.
+ * Supports YAML-like frontmatter `width: ...` or comment `%% width: ... %%` definitions.
+ * 
+ * @param code The diagram source code.
+ * @returns The extracted width string, or null if none is found.
+ */
+export function extractWidth(code: string): string | null {
+  const trimmedCode = code.trim();
+  
+  // 1. Parse frontmatter width:
+  if (trimmedCode.startsWith("---")) {
+    const parts = trimmedCode.split("---");
+    if (parts.length >= 3) {
+      const frontmatter = parts[1];
+      if (frontmatter) {
+        const widthMatch = frontmatter.match(/^\s*width\s*:\s*(.*)$/m);
+        if (widthMatch && widthMatch[1]) {
+          return widthMatch[1].trim();
+        }
+      }
+    }
+  }
+
+  // 2. Parse inline comment width: %% width: 400 %%
+  const lines = code.split("\n");
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (trimmedLine.startsWith("%%")) {
+      const widthMatch = trimmedLine.match(/^%%\s*width\s*:\s*(.*?)\s*%%$/i);
+      if (widthMatch && widthMatch[1]) {
+        return widthMatch[1].trim();
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Updates or inserts a width definition in the Mermaid source code.
+ * If frontmatter is present, updates the `width: ...` property or appends it.
+ * If no frontmatter is present, updates the comment `%% width: ... %%` or inserts it at the top.
+ * 
+ * @param code The diagram source code.
+ * @param newWidth The new width string (e.g. "400").
+ * @returns The updated diagram source code.
+ */
+export function updateWidthInCode(code: string, newWidth: string): string {
+  const trimmedCode = code.trim();
+
+  // 1. Check if frontmatter exists
+  if (trimmedCode.startsWith("---")) {
+    const parts = code.split("---");
+    if (parts.length >= 3) {
+      let frontmatter = parts[1] || "";
+      const widthMatch = frontmatter.match(/^\s*width\s*:\s*(.*)$/m);
+      if (widthMatch) {
+        frontmatter = frontmatter.replace(/^\s*width\s*:\s*.*$/m, `width: ${newWidth}`);
+      } else {
+        // Ensure there's a trailing newline or separator
+        if (frontmatter.length > 0 && !frontmatter.endsWith("\n")) {
+          frontmatter += "\n";
+        }
+        frontmatter += `width: ${newWidth}\n`;
+      }
+      parts[1] = frontmatter;
+      return parts.join("---");
+    }
+  }
+
+  // 2. Check if comment width exists
+  const lines = code.split("\n");
+  let updated = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (line.trim().startsWith("%%")) {
+      const widthMatch = line.match(/^%%\s*width\s*:\s*(.*?)\s*%%$/i);
+      if (widthMatch) {
+        lines[i] = `%% width: ${newWidth} %%`;
+        updated = true;
+        break;
+      }
+    }
+  }
+
+  if (updated) {
+    return lines.join("\n");
+  }
+
+  // 3. Otherwise, prepend comment to code
+  return `%% width: ${newWidth} %%\n` + code;
+}
+
+/**
  * Converts a text title into a url-safe slug.
  * Removes accents, converts to lowercase, replaces non-alphanumeric characters with hyphens,
  * and trims leading/trailing hyphens.
@@ -526,4 +620,58 @@ export const INJECTED_THEME_REGEX = /(?:^|(\r?\n))%%\{init:\s*\{\s*['"]theme['"]
  */
 export function stripInjectedTheme(code: string): string {
   return code.replace(INJECTED_THEME_REGEX, "$1");
+}
+
+/**
+ * Smart matcher to verify if a markdown line contains the image reference.
+ * Handles remote base64 segments, URL escaping, and local obsidian app:// paths.
+ */
+export function matchImageSource(lineText: string, src: string): boolean {
+  if (!lineText) return false;
+
+  // 1. If it's a remote URL containing a base64 segment, match by base64 segment
+  const pakoIdx = src.indexOf("/pako:");
+  if (pakoIdx !== -1) {
+    const base64Segment = src.substring(pakoIdx + 6).split("?")[0] || "";
+    if (base64Segment && lineText.includes(base64Segment)) {
+      return true;
+    }
+  }
+
+  const krokiIdx = src.indexOf("/mermaid/");
+  if (krokiIdx !== -1) {
+    const segments = src.substring(krokiIdx).split("/");
+    const lastSegment = segments[segments.length - 1]?.split("?")[0] || "";
+    if (lastSegment && lastSegment.length > 10 && lineText.includes(lastSegment)) {
+      return true;
+    }
+  }
+
+  // 2. Decode URI components
+  let decodedSrc = src;
+  try {
+    decodedSrc = decodeURIComponent(src);
+  } catch (e) {}
+
+  // 3. Fallback: match by full URL inclusion
+  if (lineText.includes(src) || lineText.includes(decodedSrc)) {
+    return true;
+  }
+
+  // 4. Fallback for local files: match by filename
+  try {
+    const url = new URL(decodedSrc);
+    const pathname = url.pathname;
+    const filename = pathname.substring(pathname.lastIndexOf("/") + 1);
+    if (filename && filename.length > 3 && lineText.includes(filename)) {
+      return true;
+    }
+  } catch (e) {
+    const filename = decodedSrc.substring(decodedSrc.lastIndexOf("/") + 1);
+    if (filename && filename.length > 3 && lineText.includes(filename)) {
+      return true;
+    }
+  }
+
+  return false;
 }
