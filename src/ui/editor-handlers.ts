@@ -146,10 +146,12 @@ export async function downloadMermaidAsFile(
   app: App,
   editor: Editor | null,
   plugin: MermaidToImagePlugin,
-  targetLine?: number
+  targetLine?: number,
+  sourcePath?: string,
+  fallbackToCursor = true
 ): Promise<void> {
   let line = targetLine;
-  if (line === undefined && editor) {
+  if (line === undefined && fallbackToCursor && editor) {
     line = editor.getCursor().line;
   }
   if (line === undefined) {
@@ -158,13 +160,14 @@ export async function downloadMermaidAsFile(
   }
 
   let lines: string[] = [];
+  const activeFile = sourcePath ? app.vault.getFileByPath(sourcePath) : app.workspace.getActiveFile();
+
   if (editor) {
     const lineCount = editor.lineCount();
     for (let i = 0; i < lineCount; i++) {
       lines.push(editor.getLine(i));
     }
   } else {
-    const activeFile = app.workspace.getActiveFile();
     if (!activeFile) {
       new Notice("No active note found. Cannot download image.");
       return;
@@ -173,7 +176,31 @@ export async function downloadMermaidAsFile(
     lines = fileContent.split("\n");
   }
 
-  const block = findMermaidBlockAtLine(lines, line);
+  let block = findMermaidBlockAtLine(lines, line);
+  if (!block && targetLine !== undefined) {
+    // Search outward to find the nearest block within 5 lines
+    const maxOffset = Math.min(line, lines.length - line);
+    for (let offset = 1; offset <= maxOffset && offset <= 5; offset++) {
+      const prevLine = line - offset;
+      if (prevLine >= 0) {
+        const pBlock = findMermaidBlockAtLine(lines, prevLine);
+        if (pBlock) {
+          block = pBlock;
+          line = prevLine;
+          break;
+        }
+      }
+      const nextLine = line + offset;
+      if (nextLine < lines.length) {
+        const nBlock = findMermaidBlockAtLine(lines, nextLine);
+        if (nBlock) {
+          block = nBlock;
+          line = nextLine;
+          break;
+        }
+      }
+    }
+  }
   if (!block) {
     new Notice("No active or commented Mermaid code block found.");
     return;
@@ -283,16 +310,18 @@ export async function convertMermaidBlockToUrl(
   app: App,
   editor: Editor | null,
   plugin: MermaidToImagePlugin,
-  targetLine?: number
+  targetLine?: number,
+  sourcePath?: string,
+  fallbackToCursor = true
 ): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
+  const activeFile = sourcePath ? app.vault.getFileByPath(sourcePath) : app.workspace.getActiveFile();
   if (!activeFile) {
     new Notice("No active note found. Cannot convert diagram.");
     return;
   }
 
   let line = targetLine;
-  if (line === undefined && editor) {
+  if (line === undefined && fallbackToCursor && editor) {
     line = editor.getCursor().line;
   }
   if (line === undefined) {
@@ -311,7 +340,32 @@ export async function convertMermaidBlockToUrl(
     lines = fileContent.split("\n");
   }
 
-  const block = findMermaidBlockAtLine(lines, line);
+  let block = findMermaidBlockAtLine(lines, line);
+  if (!block && targetLine !== undefined) {
+    // Search outward to find the nearest block within 5 lines
+    const maxOffset = Math.min(line, lines.length - line);
+    for (let offset = 1; offset <= maxOffset && offset <= 5; offset++) {
+      const prevLine = line - offset;
+      if (prevLine >= 0) {
+        const pBlock = findMermaidBlockAtLine(lines, prevLine);
+        if (pBlock) {
+          block = pBlock;
+          line = prevLine;
+          break;
+        }
+      }
+      const nextLine = line + offset;
+      if (nextLine < lines.length) {
+        const nBlock = findMermaidBlockAtLine(lines, nextLine);
+        if (nBlock) {
+          block = nBlock;
+          line = nextLine;
+          break;
+        }
+      }
+    }
+  }
+
   if (!block || block.type !== "active") {
     new Notice("No active Mermaid code block found.");
     return;
@@ -404,16 +458,18 @@ export async function restoreUrlToCodeBlock(
   app: App,
   editor: Editor | null,
   plugin: MermaidToImagePlugin,
-  targetLine?: number
+  targetLine?: number,
+  sourcePath?: string,
+  fallbackToCursor = true
 ): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
+  const activeFile = sourcePath ? app.vault.getFileByPath(sourcePath) : app.workspace.getActiveFile();
   if (!activeFile) {
     new Notice("No active note found.");
     return;
   }
 
   let line = targetLine;
-  if (line === undefined && editor) {
+  if (line === undefined && fallbackToCursor && editor) {
     line = editor.getCursor().line;
   }
   if (line === undefined) {
@@ -546,16 +602,18 @@ export async function updateDiagramSize(
   editor: Editor | null,
   plugin: MermaidToImagePlugin,
   targetLine: number | undefined,
-  nextWidth: string
+  nextWidth: string,
+  sourcePath?: string,
+  fallbackToCursor = false
 ): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
+  const activeFile = sourcePath ? app.vault.getFileByPath(sourcePath) : app.workspace.getActiveFile();
   if (!activeFile) {
     new Notice("No active note found.");
     return;
   }
 
   let line = targetLine;
-  if (line === undefined && editor) {
+  if (line === undefined && fallbackToCursor && editor) {
     line = editor.getCursor().line;
   }
   if (line === undefined) {

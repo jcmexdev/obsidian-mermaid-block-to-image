@@ -61,9 +61,9 @@ function attachConvertButton(container: HTMLElement, plugin: MermaidToImagePlugi
       e.preventDefault();
 
       const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-      const editor = (activeView && activeView.getMode() === "source") ? activeView.editor : null;
+      const editor = (activeView && activeView.getMode() === "source" && activeView.file?.path === sourcePath) ? activeView.editor : null;
       
-      await convertMermaidBlockToUrl(plugin.app, editor, plugin, targetLine);
+      await convertMermaidBlockToUrl(plugin.app, editor, plugin, targetLine, sourcePath, false);
     });
   }
 
@@ -77,9 +77,9 @@ function attachConvertButton(container: HTMLElement, plugin: MermaidToImagePlugi
       e.preventDefault();
 
       const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-      const editor = (activeView && activeView.getMode() === "source") ? activeView.editor : null;
+      const editor = (activeView && activeView.getMode() === "source" && activeView.file?.path === sourcePath) ? activeView.editor : null;
       
-      await downloadMermaidAsFile(plugin.app, editor, plugin, targetLine);
+      await downloadMermaidAsFile(plugin.app, editor, plugin, targetLine, sourcePath, false);
     });
   }
 }
@@ -196,9 +196,9 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
         e.preventDefault();
 
         const currentView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-        const currentEditor = (currentView && currentView.getMode() === "source") ? currentView.editor : null;
+        const currentEditor = (currentView && currentView.getMode() === "source" && currentView.file?.path === sourcePath) ? currentView.editor : null;
 
-        // Re-verify line in case lines shifted in the editor
+        // Re-verify line in case lines shifted in the editor or file
         let finalLine = lineToRestore;
         if (currentEditor) {
           const currentLineCount = currentEditor.lineCount();
@@ -208,9 +208,21 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
               break;
             }
           }
+        } else {
+          const activeFile = plugin.app.vault.getFileByPath(sourcePath);
+          if (activeFile) {
+            const content = await plugin.app.vault.read(activeFile);
+            const docLines = content.split("\n");
+            for (let i = 0; i < docLines.length; i++) {
+              if (matchImageSource(docLines[i] || "", src)) {
+                finalLine = i;
+                break;
+              }
+            }
+          }
         }
 
-        await restoreUrlToCodeBlock(plugin.app, currentEditor, plugin, finalLine);
+        await restoreUrlToCodeBlock(plugin.app, currentEditor, plugin, finalLine, sourcePath, false);
       });
     }
 
@@ -315,9 +327,9 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
           const widthStr = `${Math.round(finalWidth)}`;
 
           const currentView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-          const currentEditor = (currentView && currentView.getMode() === "source") ? currentView.editor : null;
+          const currentEditor = (currentView && currentView.getMode() === "source" && currentView.file?.path === sourcePath) ? currentView.editor : null;
 
-          // Re-verify line in case lines shifted in the editor
+          // Re-verify line in case lines shifted in the editor or file
           let finalLine = lineToRestore;
           if (currentEditor) {
             const currentLineCount = currentEditor.lineCount();
@@ -327,9 +339,21 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
                 break;
               }
             }
+          } else {
+            const activeFile = plugin.app.vault.getFileByPath(sourcePath);
+            if (activeFile) {
+              const content = await plugin.app.vault.read(activeFile);
+              const docLines = content.split("\n");
+              for (let i = 0; i < docLines.length; i++) {
+                if (matchImageSource(docLines[i] || "", src)) {
+                  finalLine = i;
+                  break;
+                }
+              }
+            }
           }
 
-          await updateDiagramSize(plugin.app, currentEditor, plugin, finalLine, widthStr);
+          await updateDiagramSize(plugin.app, currentEditor, plugin, finalLine, widthStr, sourcePath, false);
         };
 
         window.addEventListener("mousemove", onMouseMove);

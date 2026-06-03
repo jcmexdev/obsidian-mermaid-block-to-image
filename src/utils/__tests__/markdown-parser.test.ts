@@ -68,6 +68,7 @@ const mockApp = {
   vault: {
     read: async () => "",
     modify: async () => {},
+    getFileByPath: (path: string) => ({ path }),
   },
 } as any;
 
@@ -249,6 +250,42 @@ describe('Mermaid Plugin Specs', () => {
       expect(editorToRestore.lines[2]).toContain("graph TD");
       expect(editorToRestore.lines[3]).toContain("A --> D");
       expect(editorToRestore.lines[4]).toBe("```");
+    });
+
+    it("should convert and restore using sourcePath and vault API when editor is null", async () => {
+      let fileContent = ["```mermaid", "graph TD", "  A --> E", "```"].join("\n");
+      const localMockApp = {
+        workspace: {
+          getActiveFile: () => null,
+          getActiveViewOfType: () => null,
+        },
+        vault: {
+          getFileByPath: (path: string) => ({ path }),
+          read: async () => fileContent,
+          modify: async (file: any, content: string) => {
+            fileContent = content;
+          },
+        },
+      } as any;
+
+      const plugin = {
+        settings: {
+          urlFormat: "png",
+          service: "kroki",
+          krokiServerUrl: "https://kroki.io",
+          theme: "default",
+        },
+      } as any;
+
+      // Convert
+      await convertMermaidBlockToUrl(localMockApp, null, plugin, 1, "note.md", false);
+      expect(fileContent).toContain("![Mermaid Diagram|500]");
+
+      // Restore
+      await restoreUrlToCodeBlock(localMockApp, null, plugin, 0, "note.md", false);
+      expect(fileContent).toContain("```mermaid");
+      expect(fileContent).toContain("graph TD");
+      expect(fileContent).toContain("A --> E");
     });
   });
 
