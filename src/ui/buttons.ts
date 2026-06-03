@@ -1,6 +1,6 @@
 import { MarkdownView, setIcon, Notice, requestUrl } from "obsidian";
 import type MermaidToImagePlugin from "../main";
-import { convertMermaidBlockToUrl, restoreUrlToCodeBlock, downloadMermaidAsFile, updateDiagramSize } from "./editor-handlers";
+import { convertMermaidBlockToUrl, restoreUrlToCodeBlock, downloadMermaidAsFile, updateDiagramSize, decodeDiagramFromUrl } from "./editor-handlers";
 import { extractTitle, slugify, matchImageSource } from "../utils/markdown-parser";
 
 const MERMAID_SELECTOR = ".block-language-mermaid, .mermaid";
@@ -184,6 +184,23 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
     }
 
     if (!isMermaidImage || lineToRestore === undefined) return;
+
+    // Detect diagram theme to apply appropriate CSS class for dark/light contrast
+    let isDarkTheme = false;
+    try {
+      const decodedCode = await decodeDiagramFromUrl(src);
+      // Check if the decoded code contains a dark theme directive
+      if (
+        decodedCode.includes("'theme': 'dark'") ||
+        decodedCode.includes('"theme": "dark"') ||
+        decodedCode.includes("theme: dark")
+      ) {
+        isDarkTheme = true;
+      }
+    } catch (e) {
+      console.warn("Could not decode diagram from URL to check theme:", e);
+    }
+    targetContainer.setAttribute("data-mermaid-theme", isDarkTheme ? "dark" : "light");
 
     // 1. Create Restore Button
     if (!targetContainer.querySelector(".mermaid-action-btn-restore")) {

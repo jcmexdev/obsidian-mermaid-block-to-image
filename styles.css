@@ -200,3 +200,17 @@ body.mermaid-resizing-active * {
   background-color: var(--background-secondary);
   border-radius: 4px;
 }
+
+/* Dark mode card styling for light-themed diagrams to ensure high contrast and readability */
+.theme-dark .mermaid-image-wrapper[data-mermaid-theme="light"] img,
+.theme-dark .mermaid-image-container[data-mermaid-theme="light"] img,
+.theme-dark .image-embed[data-mermaid-theme="light"] img,
+.theme-dark .internal-embed[data-mermaid-theme="light"] img {
+  background-color: #ffffff !important;
+  border-radius: var(--radius-m, 8px) !important;
+  padding: 12px !important;
+  border: 1px solid var(--background-modifier-border, #e0e0e0) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  max-width: 100% !important;
+  height: auto !important;
+}
