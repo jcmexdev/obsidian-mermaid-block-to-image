@@ -17,6 +17,7 @@ Convert Mermaid code blocks to static image URLs (SVG, PNG, or WebP) using the f
 - 💾 **Direct Downloads**: Export your diagrams directly to your computer as SVG, PNG, or WebP files.
 - 🎨 **Theme Preservation**: Automatically matches your active light or dark Obsidian theme when rendering or downloading diagrams.
 - 🖱️ **Interactive Hover Buttons**: Easily convert, download, or restore blocks using intuitive hover buttons that appear in the top-right corner of diagrams and images.
+- 📏 **Interactive Drag-to-Resize**: Click and drag the handle on the right side of any converted diagram to resize it dynamically. A real-time tooltip displays the pixel width during resizing, and the setting is persisted directly inside the Markdown image link (e.g., `![alt|600](url)`).
 
 ---
 
@@ -60,6 +61,7 @@ When you want to edit the diagram, click the **Restore URL to Mermaid** button (
 - **Converted Images**: Hover over any converted diagram image to see:
   - **Restore URL to Mermaid** (history/revert icon): Restores the image link back to a Mermaid code block.
   - **Download image** (download icon): Downloads the diagram to your computer.
+  - **Resize Handle**: Click and drag the border handle at the right/bottom-right edge of the image to adjust its width, showing a real-time pixel tooltip. Persists the size in standard markdown layout syntax (e.g. `![alt|550](url)`).
 
 ![hover-action-buttons.png](https://i.ibb.co/BxNHmn2/hover-action-buttons-png.png)
 
