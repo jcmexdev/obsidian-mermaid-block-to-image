@@ -72,7 +72,7 @@ async function decodeAndDecompress(base64: string): Promise<string> {
 /**
  * Decodes the Mermaid diagram code from a Kroki or Mermaid.ink URL.
  */
-async function decodeDiagramFromUrl(url: string): Promise<string> {
+export async function decodeDiagramFromUrl(url: string): Promise<string> {
   if (url.includes("mermaid.ink/")) {
     const pakoIdx = url.indexOf("/pako:");
     if (pakoIdx === -1) {
