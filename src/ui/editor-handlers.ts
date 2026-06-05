@@ -7,7 +7,6 @@ import {
   findMermaidBlockAtLine,
   getCodeHash,
   parseImageLink,
-  matchImageSource,
   slugify,
   injectThemeDirective,
   stripInjectedTheme,

@@ -118,6 +118,10 @@ body .workspace-leaf .markdown-preview-view .edit-block-button.mermaid-action-bt
   display: inline-block;
   max-width: 100%;
 }
+.workspace-leaf .mermaid-image-wrapper img {
+  max-width: 100%;
+  height: auto;
+}
 
 /* Reveal buttons when hovering over the image embed or any processed container */
 .workspace-leaf [data-mermaid-image-processed="true"]:hover .edit-block-button.mermaid-action-btn-restore,

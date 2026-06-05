@@ -651,7 +651,9 @@ export function matchImageSource(lineText: string, src: string): boolean {
   let decodedSrc = src;
   try {
     decodedSrc = decodeURIComponent(src);
-  } catch (e) {}
+  } catch {
+    // Fallback: use raw src if decode fails
+  }
 
   // 3. Fallback: match by full URL inclusion
   if (lineText.includes(src) || lineText.includes(decodedSrc)) {
@@ -666,7 +668,7 @@ export function matchImageSource(lineText: string, src: string): boolean {
     if (filename && filename.length > 3 && lineText.includes(filename)) {
       return true;
     }
-  } catch (e) {
+  } catch {
     const filename = decodedSrc.substring(decodedSrc.lastIndexOf("/") + 1);
     if (filename && filename.length > 3 && lineText.includes(filename)) {
       return true;

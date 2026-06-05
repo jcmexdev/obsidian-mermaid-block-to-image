@@ -1,7 +1,7 @@
 import { MarkdownView, setIcon, Notice, requestUrl } from "obsidian";
 import type MermaidToImagePlugin from "../main";
 import { convertMermaidBlockToUrl, restoreUrlToCodeBlock, downloadMermaidAsFile, updateDiagramSize, decodeDiagramFromUrl } from "./editor-handlers";
-import { extractTitle, slugify, matchImageSource } from "../utils/markdown-parser";
+import { slugify, matchImageSource } from "../utils/markdown-parser";
 
 const MERMAID_SELECTOR = ".block-language-mermaid, .mermaid";
 const IMAGE_SELECTOR = ".internal-embed, .image-embed, img";
@@ -328,14 +328,12 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
           if (newWidth > 1600) newWidth = 1600;
 
           img.style.width = `${newWidth}px`;
-          img.style.maxWidth = "100%";
-          img.style.height = "auto";
 
           // Update tooltip text content dynamically
           tooltip.setText(`${newWidth}px`);
         };
 
-        const onMouseUp = async (upEvent: MouseEvent) => {
+        const onMouseUp = (_upEvent: MouseEvent) => {
           window.removeEventListener("mousemove", onMouseMove);
           window.removeEventListener("mouseup", onMouseUp);
           doc.body.classList.remove("mermaid-resizing-active");
@@ -353,29 +351,34 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
 
           // Re-verify line in case lines shifted in the editor or file
           let finalLine = lineToRestore;
-          if (currentEditor) {
-            const currentLineCount = currentEditor.lineCount();
-            for (let i = 0; i < currentLineCount; i++) {
-              if (matchImageSource(currentEditor.getLine(i), src)) {
-                finalLine = i;
-                break;
-              }
-            }
-          } else {
-            const activeFile = plugin.app.vault.getFileByPath(sourcePath);
-            if (activeFile) {
-              const content = await plugin.app.vault.read(activeFile);
-              const docLines = content.split("\n");
-              for (let i = 0; i < docLines.length; i++) {
-                if (matchImageSource(docLines[i] || "", src)) {
+          
+          const doUpdate = async () => {
+            if (currentEditor) {
+              const currentLineCount = currentEditor.lineCount();
+              for (let i = 0; i < currentLineCount; i++) {
+                if (matchImageSource(currentEditor.getLine(i), src)) {
                   finalLine = i;
                   break;
                 }
               }
+            } else {
+              const activeFile = plugin.app.vault.getFileByPath(sourcePath);
+              if (activeFile) {
+                const content = await plugin.app.vault.read(activeFile);
+                const docLines = content.split("\n");
+                for (let i = 0; i < docLines.length; i++) {
+                  if (matchImageSource(docLines[i] || "", src)) {
+                    finalLine = i;
+                    break;
+                  }
+                }
+              }
             }
-          }
 
-          await updateDiagramSize(plugin.app, currentEditor, plugin, finalLine, widthStr, sourcePath, false);
+            await updateDiagramSize(plugin.app, currentEditor, plugin, finalLine, widthStr, sourcePath, false);
+          };
+
+          void doUpdate();
         };
 
         window.addEventListener("mousemove", onMouseMove);
