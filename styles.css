@@ -164,18 +164,27 @@ body .workspace-leaf .markdown-preview-view .edit-block-button.mermaid-action-bt
 }
 
 /* Make it fully prominent when hovering the handle itself or dragging active */
-.workspace-leaf .mermaid-resize-handle:hover,
-body.mermaid-resizing-active .mermaid-resize-handle {
-  background-color: var(--interactive-accent) !important;
+body .workspace-leaf [data-mermaid-image-processed="true"] .mermaid-resize-handle:hover,
+body .workspace-leaf .internal-embed .mermaid-resize-handle:hover,
+body .workspace-leaf .image-embed .mermaid-resize-handle:hover,
+body.mermaid-resizing-active .workspace-leaf .mermaid-resize-handle {
+  background-color: var(--interactive-accent);
   box-shadow: 0 0 4px var(--interactive-accent);
 }
 
-/* Global utility cursor and user-select override when actively resizing */
-body.mermaid-resizing-active,
-body.mermaid-resizing-active * {
-  cursor: ew-resize !important;
-  user-select: none !important;
-  -webkit-user-select: none !important;
+/* Resize overlay to capture cursor and select events during dragging */
+.mermaid-resize-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  cursor: ew-resize;
+  z-index: 99999;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Visual drag resize tooltip overlay showing pixel width dynamically */
@@ -206,15 +215,15 @@ body.mermaid-resizing-active * {
 }
 
 /* Dark mode card styling for light-themed diagrams to ensure high contrast and readability */
-.theme-dark .mermaid-image-wrapper[data-mermaid-theme="light"] img,
-.theme-dark .mermaid-image-container[data-mermaid-theme="light"] img,
-.theme-dark .image-embed[data-mermaid-theme="light"] img,
-.theme-dark .internal-embed[data-mermaid-theme="light"] img {
-  background-color: #ffffff !important;
-  border-radius: var(--radius-m, 8px) !important;
-  padding: 12px !important;
-  border: 1px solid var(--background-modifier-border, #e0e0e0) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
-  max-width: 100% !important;
-  height: auto !important;
+body.theme-dark .workspace-leaf .mermaid-image-wrapper[data-mermaid-theme="light"] img,
+body.theme-dark .workspace-leaf .mermaid-image-container[data-mermaid-theme="light"] img,
+body.theme-dark .workspace-leaf .image-embed[data-mermaid-theme="light"] img,
+body.theme-dark .workspace-leaf .internal-embed[data-mermaid-theme="light"] img {
+  background-color: #ffffff;
+  border-radius: var(--radius-m, 8px);
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border, #e0e0e0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  max-width: 100%;
+  height: auto;
 }

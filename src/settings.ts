@@ -123,7 +123,7 @@ export class MermaidSettingTab extends PluginSettingTab {
             }
             
             await this.plugin.saveSettings();
-            this.display();
+            (this as unknown as { display(): void }).display();
           })
       );
 
