@@ -345,9 +345,7 @@ export async function convertMermaidBlockToUrl(
       }
       const base64 = await compressAndEncode(JSON.stringify(state));
       
-      if (format === "svg") {
-        url = `${server}/svg/pako:${base64}`;
-      } else if (format === "webp") {
+      if (format === "webp") {
         url = `${server}/img/pako:${base64}?type=webp`;
       } else {
         url = `${server}/img/pako:${base64}`;

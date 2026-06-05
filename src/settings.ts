@@ -12,7 +12,7 @@ export interface MermaidSettings {
   /**
    * Format used when converting diagrams to online URLs.
    */
-  urlFormat: "svg" | "png" | "webp";
+  urlFormat: "png" | "webp";
   /**
    * The online service to use for generating URL encoded diagram images.
    */
@@ -133,7 +133,6 @@ export class MermaidSettingTab extends PluginSettingTab {
       .setName("URL image format")
       .setDesc("Image format for the generated markdown URL link. Kroki does not support WebP.")
       .addDropdown((dropdown) => {
-        dropdown.addOption("svg", "Svg (scalable vector graphics)");
         dropdown.addOption("png", "PNG (portable network graphics)");
         
         if (!isKroki) {
@@ -141,7 +140,7 @@ export class MermaidSettingTab extends PluginSettingTab {
         }
         
         dropdown.setValue(this.plugin.settings.urlFormat);
-        dropdown.onChange(async (value: "svg" | "png" | "webp") => {
+        dropdown.onChange(async (value: "png" | "webp") => {
           this.plugin.settings.urlFormat = value;
           await this.plugin.saveSettings();
         });

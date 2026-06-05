@@ -136,7 +136,7 @@ describe('Mermaid Plugin Specs', () => {
     it("should convert active Mermaid block to Mermaid.ink URL with theme", async () => {
       const plugin = {
         settings: {
-          urlFormat: "svg",
+          urlFormat: "webp",
           service: "mermaid-ink",
           mermaidInkServerUrl: "https://mermaid.ink",
           theme: "dark",
@@ -153,7 +153,8 @@ describe('Mermaid Plugin Specs', () => {
 
       await convertMermaidBlockToUrl(mockApp, editor as any, plugin);
 
-      expect(editor.lines[0]).toContain("![Mermaid Diagram](https://mermaid.ink/svg/pako:");
+      expect(editor.lines[0]).toContain("![Mermaid Diagram](https://mermaid.ink/img/pako:");
+      expect(editor.lines[0]).toContain("type=webp");
     });
   });
 
@@ -199,7 +200,7 @@ describe('Mermaid Plugin Specs', () => {
       const testCode = "graph TD\n  A --> C";
       const pluginForGen = {
         settings: {
-          urlFormat: "svg",
+          urlFormat: "webp",
           service: "mermaid-ink",
           mermaidInkServerUrl: "https://mermaid.ink",
           theme: "default",

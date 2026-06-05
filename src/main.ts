@@ -81,6 +81,10 @@ export default class MermaidToImagePlugin extends Plugin {
    */
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MermaidSettings>);
+    // Coerce deprecated 'svg' urlFormat to 'png' to avoid rendering errors
+    if ((this.settings.urlFormat as string) === "svg") {
+      this.settings.urlFormat = "png";
+    }
   }
 
   /**
