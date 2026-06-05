@@ -313,6 +313,10 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
 
         doc.body.classList.add("mermaid-resizing-active");
 
+        const overlay = doc.createElement("div");
+        overlay.classList.add("mermaid-resize-overlay");
+        doc.body.appendChild(overlay);
+
         // Create or get visual tooltip overlay
         let tooltip = targetContainer.querySelector(".mermaid-resize-tooltip") as HTMLElement;
         if (!tooltip) {
@@ -337,6 +341,7 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
           window.removeEventListener("mousemove", onMouseMove);
           window.removeEventListener("mouseup", onMouseUp);
           doc.body.classList.remove("mermaid-resizing-active");
+          overlay.remove();
 
           // Remove tooltip
           if (tooltip) {

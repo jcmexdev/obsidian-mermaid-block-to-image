@@ -3,14 +3,14 @@ import MermaidToImagePlugin from "../main";
 import {
   extractTitle,
   extractWidth,
-  updateWidthInCode,
   findMermaidBlockAtLine,
   getCodeHash,
+  hasThemeInCode,
+  injectThemeDirective,
   parseImageLink,
   slugify,
-  injectThemeDirective,
   stripInjectedTheme,
-  hasThemeInCode
+  updateWidthInCode
 } from "../utils/markdown-parser";
 
 /**
@@ -121,8 +121,7 @@ async function ensureMermaidLoaded(app: App): Promise<MermaidInstance | undefine
   if (mermaid) return mermaid;
 
   const dummy = activeDocument.body.createDiv();
-  // eslint-disable-next-line obsidianmd/no-static-styles-assignment
-  dummy.style.display = "none";
+  dummy.setCssStyles({ display: "none" });
   try {
     const comp = new Component();
     comp.load();
