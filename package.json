@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-mermaid-block-to-image",
-	"version": "1.1.1",
+	"version": "1.2.0",
 	"description": "Converts Mermaid code blocks to static image URLs (SVG, PNG, WebP) using Kroki or Mermaid.ink, and restores them instantly.",
 	"main": "main.js",
 	"type": "module",
