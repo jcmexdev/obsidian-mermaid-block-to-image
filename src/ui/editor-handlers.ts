@@ -2,6 +2,8 @@ import { App, Component, Editor, MarkdownRenderer, MarkdownView, Notice } from "
 import MermaidToImagePlugin from "../main";
 import {
   extractTitle,
+  extractWidth,
+  updateWidthInCode,
   findMermaidBlockAtLine,
   getCodeHash,
   parseImageLink,
@@ -72,7 +74,7 @@ async function decodeAndDecompress(base64: string): Promise<string> {
 /**
  * Decodes the Mermaid diagram code from a Kroki or Mermaid.ink URL.
  */
-async function decodeDiagramFromUrl(url: string): Promise<string> {
+export async function decodeDiagramFromUrl(url: string): Promise<string> {
   if (url.includes("mermaid.ink/")) {
     const pakoIdx = url.indexOf("/pako:");
     if (pakoIdx === -1) {
@@ -143,10 +145,12 @@ export async function downloadMermaidAsFile(
   app: App,
   editor: Editor | null,
   plugin: MermaidToImagePlugin,
-  targetLine?: number
+  targetLine?: number,
+  sourcePath?: string,
+  fallbackToCursor = true
 ): Promise<void> {
   let line = targetLine;
-  if (line === undefined && editor) {
+  if (line === undefined && fallbackToCursor && editor) {
     line = editor.getCursor().line;
   }
   if (line === undefined) {
@@ -155,13 +159,14 @@ export async function downloadMermaidAsFile(
   }
 
   let lines: string[] = [];
+  const activeFile = sourcePath ? app.vault.getFileByPath(sourcePath) : app.workspace.getActiveFile();
+
   if (editor) {
     const lineCount = editor.lineCount();
     for (let i = 0; i < lineCount; i++) {
       lines.push(editor.getLine(i));
     }
   } else {
-    const activeFile = app.workspace.getActiveFile();
     if (!activeFile) {
       new Notice("No active note found. Cannot download image.");
       return;
@@ -170,7 +175,31 @@ export async function downloadMermaidAsFile(
     lines = fileContent.split("\n");
   }
 
-  const block = findMermaidBlockAtLine(lines, line);
+  let block = findMermaidBlockAtLine(lines, line);
+  if (!block && targetLine !== undefined) {
+    // Search outward to find the nearest block within 5 lines
+    const maxOffset = Math.min(line, lines.length - line);
+    for (let offset = 1; offset <= maxOffset && offset <= 5; offset++) {
+      const prevLine = line - offset;
+      if (prevLine >= 0) {
+        const pBlock = findMermaidBlockAtLine(lines, prevLine);
+        if (pBlock) {
+          block = pBlock;
+          line = prevLine;
+          break;
+        }
+      }
+      const nextLine = line + offset;
+      if (nextLine < lines.length) {
+        const nBlock = findMermaidBlockAtLine(lines, nextLine);
+        if (nBlock) {
+          block = nBlock;
+          line = nextLine;
+          break;
+        }
+      }
+    }
+  }
   if (!block) {
     new Notice("No active or commented Mermaid code block found.");
     return;
@@ -280,16 +309,18 @@ export async function convertMermaidBlockToUrl(
   app: App,
   editor: Editor | null,
   plugin: MermaidToImagePlugin,
-  targetLine?: number
+  targetLine?: number,
+  sourcePath?: string,
+  fallbackToCursor = true
 ): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
+  const activeFile = sourcePath ? app.vault.getFileByPath(sourcePath) : app.workspace.getActiveFile();
   if (!activeFile) {
     new Notice("No active note found. Cannot convert diagram.");
     return;
   }
 
   let line = targetLine;
-  if (line === undefined && editor) {
+  if (line === undefined && fallbackToCursor && editor) {
     line = editor.getCursor().line;
   }
   if (line === undefined) {
@@ -308,7 +339,32 @@ export async function convertMermaidBlockToUrl(
     lines = fileContent.split("\n");
   }
 
-  const block = findMermaidBlockAtLine(lines, line);
+  let block = findMermaidBlockAtLine(lines, line);
+  if (!block && targetLine !== undefined) {
+    // Search outward to find the nearest block within 5 lines
+    const maxOffset = Math.min(line, lines.length - line);
+    for (let offset = 1; offset <= maxOffset && offset <= 5; offset++) {
+      const prevLine = line - offset;
+      if (prevLine >= 0) {
+        const pBlock = findMermaidBlockAtLine(lines, prevLine);
+        if (pBlock) {
+          block = pBlock;
+          line = prevLine;
+          break;
+        }
+      }
+      const nextLine = line + offset;
+      if (nextLine < lines.length) {
+        const nBlock = findMermaidBlockAtLine(lines, nextLine);
+        if (nBlock) {
+          block = nBlock;
+          line = nextLine;
+          break;
+        }
+      }
+    }
+  }
+
   if (!block || block.type !== "active") {
     new Notice("No active Mermaid code block found.");
     return;
@@ -323,6 +379,12 @@ export async function convertMermaidBlockToUrl(
 
     const hasTheme = hasThemeInCode(block.code || "");
     const effectiveTheme = getEffectiveTheme(plugin);
+
+    // Compute width options: prioritize diagram-specific frontmatter/comment or fallback to default 500
+    const widthFromCode = extractWidth(block.code || "");
+    const configWidth = widthFromCode || "500";
+    const isPercent = configWidth.endsWith("%");
+    const apiWidth = isPercent ? 1200 : (parseInt(configWidth) || 500);
 
     if (service === "kroki") {
       const server = (plugin.settings.krokiServerUrl || "https://kroki.io").replace(/\/$/, "");
@@ -346,7 +408,7 @@ export async function convertMermaidBlockToUrl(
       const base64 = await compressAndEncode(JSON.stringify(state));
       
       if (format === "svg") {
-        url = `${server}/svg/pako:${base64}`;
+        url = `${server}/svg/pako:${base64}?width=${apiWidth}`;
       } else if (format === "webp") {
         url = `${server}/img/pako:${base64}?type=webp`;
       } else {
@@ -355,7 +417,7 @@ export async function convertMermaidBlockToUrl(
     }
 
     const title = extractTitle(block.code || "");
-    const altText = title || "Mermaid Diagram";
+    const altText = title ? `${title}|${configWidth}` : `Mermaid Diagram|${configWidth}`;
     const replacementText = `![${altText}](${url})`;
 
     const endLine = block.endLine;
@@ -395,16 +457,18 @@ export async function restoreUrlToCodeBlock(
   app: App,
   editor: Editor | null,
   plugin: MermaidToImagePlugin,
-  targetLine?: number
+  targetLine?: number,
+  sourcePath?: string,
+  fallbackToCursor = true
 ): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
+  const activeFile = sourcePath ? app.vault.getFileByPath(sourcePath) : app.workspace.getActiveFile();
   if (!activeFile) {
     new Notice("No active note found.");
     return;
   }
 
   let line = targetLine;
-  if (line === undefined && editor) {
+  if (line === undefined && fallbackToCursor && editor) {
     line = editor.getCursor().line;
   }
   if (line === undefined) {
@@ -478,8 +542,19 @@ export async function restoreUrlToCodeBlock(
     const loadingNotice = new Notice("Decompressing diagram URL...", 0);
     try {
       const decodedCodeRaw = await decodeDiagramFromUrl(parsed.path);
-      const decodedCode = stripInjectedTheme(decodedCodeRaw);
+      let decodedCode = stripInjectedTheme(decodedCodeRaw);
       
+      // Extract width from alt text if present
+      const mdMatch = lineText.match(/^!\[([^\]]*)\]/);
+      if (mdMatch) {
+        const altPart = mdMatch[1] || "";
+        const altParts = altPart.split("|");
+        const widthPart = altParts[1]?.trim();
+        if (widthPart && widthPart !== "500") {
+          decodedCode = updateWidthInCode(decodedCode, widthPart);
+        }
+      }
+
       const replacementText = [
         "```mermaid",
         decodedCode,
@@ -512,5 +587,96 @@ export async function restoreUrlToCodeBlock(
     }
   } else {
     new Notice("No commented block or remote diagram link found at cursor.");
+  }
+}
+
+/**
+ * Updates a converted diagram's width to the specified value.
+ * Decodes the original Mermaid diagram code, updates its width property,
+ * re-encodes/compresses the code back into the remote URL, replaces the link,
+ * and re-renders the view.
+ */
+export async function updateDiagramSize(
+  app: App,
+  editor: Editor | null,
+  plugin: MermaidToImagePlugin,
+  targetLine: number | undefined,
+  nextWidth: string,
+  sourcePath?: string,
+  fallbackToCursor = false
+): Promise<void> {
+  const activeFile = sourcePath ? app.vault.getFileByPath(sourcePath) : app.workspace.getActiveFile();
+  if (!activeFile) {
+    new Notice("No active note found.");
+    return;
+  }
+
+  let line = targetLine;
+  if (line === undefined && fallbackToCursor && editor) {
+    line = editor.getCursor().line;
+  }
+  if (line === undefined) {
+    new Notice("Could not determine diagram line number.");
+    return;
+  }
+
+  let lines: string[] = [];
+  if (editor) {
+    const lineCount = editor.lineCount();
+    for (let i = 0; i < lineCount; i++) {
+      lines.push(editor.getLine(i));
+    }
+  } else {
+    const fileContent = await app.vault.read(activeFile);
+    lines = fileContent.split("\n");
+  }
+
+  const lineText = lines[line];
+  if (!lineText) {
+    new Notice("No diagram image link found at cursor line.");
+    return;
+  }
+
+  const parsed = parseImageLink(lineText);
+  if (!parsed || !parsed.isRemote) {
+    new Notice("No remote diagram link found at cursor line.");
+    return;
+  }
+
+  // Parse current width from the link.
+  // Match standard Markdown image link: ![alt|width](url)
+  const mdMatch = lineText.match(/^(!\[)([^\]]*)(\]\()([^)]+)(\))$/);
+  if (!mdMatch) {
+    new Notice("Failed to parse image link format.");
+    return;
+  }
+
+  const prefix = mdMatch[1]; // "!["
+  const altPart = mdMatch[2] || ""; // "Title|width"
+  const mid = mdMatch[3]; // "]("
+  const urlPart = mdMatch[4] || ""; // "https://..."
+  const suffix = mdMatch[5]; // ")"
+
+  const altParts = altPart.split("|");
+  const title = altParts[0] || "";
+
+  try {
+    const newAltPart = title ? `${title}|${nextWidth}` : `Mermaid Diagram|${nextWidth}`;
+    const replacementText = `${prefix}${newAltPart}${mid}${urlPart}${suffix}`;
+
+    if (editor) {
+      editor.replaceRange(
+        replacementText,
+        { line, ch: 0 },
+        { line, ch: lineText.length }
+      );
+    } else {
+      lines.splice(line, 1, replacementText);
+      await app.vault.modify(activeFile, lines.join("\n"));
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    new Notice(`Failed to save diagram size: ${errorMsg}`);
+    console.error("Saving diagram size failed:", error);
   }
 }
