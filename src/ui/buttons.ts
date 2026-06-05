@@ -267,9 +267,14 @@ function attachRestoreButton(embedDiv: HTMLElement, plugin: MermaidToImagePlugin
             downloadUrl = URL.createObjectURL(blob);
           }
 
-          // Extract extension from configuration
+          // Extract filename from the alt text of the markdown link: ![Title|500](url)
+          // Strip the |width suffix if present (e.g. "My Diagram|500" → "My Diagram")
+          const imageLine = lines[lineToRestore] || "";
+          const altMatch = imageLine.match(/^!\[([^\]]*)\]/);
+          const rawAlt = altMatch ? altMatch[1] : "";
+          const altTitle = rawAlt && rawAlt.includes("|") ? rawAlt.split("|")[0]!.trim() : (rawAlt ?? "").trim();
           const ext = plugin.settings.downloadFormat;
-          const title = slugify(extractTitle(content) || "mermaid-diagram");
+          const title = slugify(altTitle || "mermaid-diagram");
           const filename = `${title}.${ext}`;
 
           const a = activeDocument.body.createEl("a");
