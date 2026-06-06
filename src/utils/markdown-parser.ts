@@ -677,3 +677,67 @@ export function matchImageSource(lineText: string, src: string): boolean {
 
   return false;
 }
+
+/**
+ * Sanitizes the SVG string (fixing any unclosed HTML tags inside <foreignObject> by parsing/serializing)
+ * and embeds the values of CSS variables used in the SVG styles.
+ */
+export function processSvgForExport(
+  svg: string,
+  domParserObj?: unknown,
+  xmlSerializerObj?: unknown,
+  doc?: unknown,
+  getComputedStyleFn?: unknown
+): string {
+  const parser = (domParserObj as DOMParser) || (typeof DOMParser !== "undefined" ? new DOMParser() : null);
+  const serializer = (xmlSerializerObj as XMLSerializer) || (typeof XMLSerializer !== "undefined" ? new XMLSerializer() : null);
+  const documentCtx = (doc as Document) || (typeof activeDocument !== "undefined" ? activeDocument : null);
+  const getStyle = (getComputedStyleFn as typeof getComputedStyle) || (typeof getComputedStyle !== "undefined" ? getComputedStyle : null);
+
+  if (!parser || !serializer || !documentCtx || !getStyle) {
+    return svg;
+  }
+
+  try {
+    const parsedDoc = parser.parseFromString(svg, "text/html");
+    const svgEl = parsedDoc.querySelector("svg");
+    if (!svgEl) {
+      return svg;
+    }
+
+    // Scan for CSS variables: var(--...)
+    const svgOuter = svgEl.outerHTML;
+    const varRegex = /var\((--[^,)]+)(?:,\s*([^)]+))?\)/g;
+    const foundVars = new Set<string>();
+    let match;
+    while ((match = varRegex.exec(svgOuter)) !== null) {
+      if (match[1]) {
+        foundVars.add(match[1].trim());
+      }
+    }
+
+    if (foundVars.size > 0 && documentCtx.body) {
+      const computedStyle = getStyle(documentCtx.body);
+      let cssRules = "";
+      foundVars.forEach((varName) => {
+        const val = computedStyle.getPropertyValue(varName)?.trim();
+        if (val) {
+          cssRules += `  ${varName}: ${val};\n`;
+        }
+      });
+
+      if (cssRules) {
+        const styleEl = documentCtx.createElementNS("http://www.w3.org/2000/svg", "style");
+        styleEl.textContent = `:root {\n${cssRules}}`;
+        svgEl.insertBefore(styleEl, svgEl.firstChild);
+      }
+    }
+
+    return serializer.serializeToString(svgEl);
+  } catch (e) {
+    console.error("Failed to process SVG for export:", e);
+    return svg;
+  }
+}
+
+

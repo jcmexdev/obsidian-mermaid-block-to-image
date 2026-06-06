@@ -8,6 +8,7 @@ import {
   hasThemeInCode,
   injectThemeDirective,
   parseImageLink,
+  processSvgForExport,
   slugify,
   stripInjectedTheme,
   updateWidthInCode
@@ -222,11 +223,13 @@ export async function downloadMermaidAsFile(
       throw new Error("Local Mermaid render returned empty output.");
     }
 
+    const processedSvg = processSvgForExport(svg);
+
     let downloadBlob: Blob;
     if (format === "svg") {
-      downloadBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+      downloadBlob = new Blob([processedSvg], { type: "image/svg+xml;charset=utf-8" });
     } else {
-      const bytes = new TextEncoder().encode(svg);
+      const bytes = new TextEncoder().encode(processedSvg);
       let binString = "";
       bytes.forEach((b) => {
         binString += String.fromCharCode(b);
@@ -243,7 +246,7 @@ export async function downloadMermaidAsFile(
       let width = img.naturalWidth || img.width;
       let height = img.naturalHeight || img.height;
       if (!width || !height) {
-        const viewBoxMatch = svg.match(/viewBox=["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/);
+        const viewBoxMatch = processedSvg.match(/viewBox=["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/);
         if (viewBoxMatch) {
           const wStr = viewBoxMatch[3];
           const hStr = viewBoxMatch[4];

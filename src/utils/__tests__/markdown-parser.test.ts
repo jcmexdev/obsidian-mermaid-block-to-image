@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { vi, describe, it, expect } from 'vitest';
 import { convertMermaidBlockToUrl, restoreUrlToCodeBlock } from '../../ui/editor-handlers';
-import { parseImageLink, extractTitle, extractWidth, updateWidthInCode, slugify, stripInjectedTheme } from '../markdown-parser';
+import { parseImageLink, extractTitle, extractWidth, updateWidthInCode, slugify, stripInjectedTheme, processSvgForExport } from '../markdown-parser';
 
 // Mock obsidian before importing anything that uses it
 vi.mock("obsidian", () => {
@@ -356,6 +356,53 @@ describe('Mermaid Plugin Specs', () => {
       expect(parsed).not.toBeNull();
       expect(parsed!.path).toBe("attachments/image.png");
       expect(parsed!.isRemote).toBe(false);
+    });
+  });
+
+  describe("SVG Processing for Export Spec", () => {
+    it("should sanitize unclosed tags and inject CSS variables", () => {
+      const mockSvg = '<svg viewBox="0 0 100 100"><div>Hello<br>world</div><style>rect { color: var(--text-normal); }</style></svg>';
+      
+      const mockStyleEl = { textContent: "" };
+      const mockSvgEl = {
+        outerHTML: mockSvg,
+        firstChild: {},
+        insertBefore: vi.fn(),
+      };
+      
+      const mockParser = {
+        parseFromString: vi.fn().mockReturnValue({
+          querySelector: vi.fn().mockReturnValue(mockSvgEl)
+        })
+      };
+
+      const mockSerializer = {
+        serializeToString: vi.fn().mockReturnValue("serialized_svg")
+      };
+
+      const mockDoc = {
+        body: {},
+        createElementNS: vi.fn().mockReturnValue(mockStyleEl)
+      };
+
+      const mockGetComputedStyle = vi.fn().mockReturnValue({
+        getPropertyValue: vi.fn().mockReturnValue("#123456")
+      });
+
+      const processed = processSvgForExport(
+        mockSvg,
+        mockParser,
+        mockSerializer,
+        mockDoc,
+        mockGetComputedStyle
+      );
+      
+      expect(mockParser.parseFromString).toHaveBeenCalledWith(mockSvg, "text/html");
+      expect(mockDoc.createElementNS).toHaveBeenCalledWith("http://www.w3.org/2000/svg", "style");
+      expect(mockStyleEl.textContent).toContain("--text-normal: #123456;");
+      expect(mockSvgEl.insertBefore).toHaveBeenCalledWith(mockStyleEl, mockSvgEl.firstChild);
+      expect(mockSerializer.serializeToString).toHaveBeenCalledWith(mockSvgEl);
+      expect(processed).toBe("serialized_svg");
     });
   });
 });
